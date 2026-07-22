@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><title>ZXing engine self test</title>
+<pre id="out">starting</pre>
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.2/dist/iife/reader/index.js"></script>
+<script>
+(async()=>{
+ const out=document.getElementById('out'); const rows=[];
+ try{
+  if(!window.ZXingWASM) throw new Error('ZXingWASM missing');
+  await ZXingWASM.prepareZXingModule({fireImmediately:true});
+  for(const [file,expected] of [['test-fixtures/qr-rack-a01.png','RACK-A01'],['test-fixtures/code128-slot-b12.png','SLOT-B12'],['test-fixtures/ean13-880123456789.png','8801234567897']]){
+   const blob=await fetch(file).then(r=>r.blob());
+   const res=await ZXingWASM.readBarcodes(blob,{formats:[],tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,minLineCount:1,textMode:'Plain'});
+   const got=res[0]?.text||''; rows.push({file,expected,got,pass:got===expected,format:res[0]?.format||''});
+  }
+  out.textContent=JSON.stringify(rows,null,2); document.title=rows.every(x=>x.pass)?'PASS':'FAIL';
+ }catch(e){out.textContent='ERROR '+e.stack;document.title='ERROR';}
+})();
+</script>

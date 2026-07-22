@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="8.0.0";
+var APP_VERSION="9.0.0";
 var RECORD_KEY="rss_records_v3";
 var CONFIG_KEY="rss_config_v3";
 
@@ -11,7 +11,9 @@ var state={
   rack:"", shelf:"", slot:"", stage:"rack", records:[],
   scanner:null, stream:null, scanning:false, scanMode:"auto", torchOn:false, cameraCapabilities:null, editingStage:null,
   decodeBusy:false, animationId:0, frameIndex:0, lastDecodeAt:0,
-  scanLocked:false, lastDecodedValue:"", lastDecodedAt:0
+  scanLocked:false, lastDecodedValue:"", lastDecodedAt:0,
+  zxingReadyPromise:null, nativeDetector:null, detectorFormats:[], decodeAttempts:0, decodeErrors:0, lastDecodeError:"",
+  regionIndex:0, variantIndex:0
 };
 
 function $(id){return document.getElementById(id);}
@@ -44,11 +46,27 @@ function setScannerStatus(message,type){
   el.className="scanner-status"+(type?" "+type:"");
 }
 function activeFormats(){
-  if(state.scanMode==="barcode")return ["AllLinear"];
-  if(state.scanMode==="qr")return ["QRCode","MicroQRCode","RMQRCode","DataMatrix","Aztec","PDF417"];
-  if(state.scanMode==="small")return ["AllReadable"];
-  return ["AllReadable"];
+  if(state.scanMode==="barcode")return [
+    "Codabar","Code39","Code39Std","Code39Ext","Code32","PZN","Code93","Code128",
+    "ITF","ITF14","DataBar","DataBarOmni","DataBarStk","DataBarStkOmni","DataBarLtd",
+    "DataBarExp","DataBarExpStk","EANUPC","EAN13","EAN8","EAN5","EAN2","ISBN","UPCA","UPCE",
+    "Telepen","TelepenAlpha","TelepenNumeric","DXFilmEdge"
+  ];
+  if(state.scanMode==="qr")return [
+    "QRCode","QRCodeModel1","QRCodeModel2","MicroQRCode","RMQRCode","DataMatrix",
+    "Aztec","AztecCode","AztecRune","PDF417","CompactPDF417","MicroPDF417","MaxiCode"
+  ];
+  /* 자동/소형 모드는 빈 배열이 공식적으로 모든 지원 포맷을 의미한다. */
+  return [];
 }
+
+function nativeFormatsForMode(){
+  var all=state.detectorFormats||[];
+  if(state.scanMode==="barcode")return all.filter(function(f){return !/qr|aztec|data_matrix|pdf417/i.test(f);});
+  if(state.scanMode==="qr")return all.filter(function(f){return /qr|aztec|data_matrix|pdf417/i.test(f);});
+  return all.slice();
+}
+
 function scanRegion(width,height){
   if(state.scanMode==="barcode"){
     return {width:Math.floor(width*.94),height:Math.max(120,Math.floor(height*.28))};
@@ -98,22 +116,24 @@ function setupCameraControls(){
 }
 
 function ensureScannerLibrary(){
-  if(window.ZXingWASM && typeof window.ZXingWASM.readBarcodes==="function"){
-    try{
-      window.ZXingWASM.prepareZXingModule({
-        overrides:{
-          locateFile:function(path,prefix){
-            if(path.endsWith(".wasm")){
-              return "https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.2/dist/reader/zxing_reader.wasm";
-            }
-            return prefix+path;
-          }
-        }
-      });
-    }catch(e){console.warn("ZXing WASM prepare",e);}
-    return Promise.resolve();
-  }
-  return Promise.reject(new Error("ZXing-C++ WASM 라이브러리를 불러오지 못했습니다. 인터넷 연결 또는 CDN 차단 여부를 확인하세요."));
+  if(state.zxingReadyPromise)return state.zxingReadyPromise;
+  state.zxingReadyPromise=(async function(){
+    if(!window.ZXingWASM||typeof window.ZXingWASM.readBarcodes!=="function"){
+      throw new Error("ZXing-C++ WASM JavaScript를 불러오지 못했습니다.");
+    }
+    /* 모듈은 한 번만 초기화하고 실제 WASM 인스턴스 생성 완료까지 기다린다. */
+    if(typeof window.ZXingWASM.prepareZXingModule==="function"){
+      await window.ZXingWASM.prepareZXingModule({fireImmediately:true});
+    }
+    if("BarcodeDetector" in window){
+      try{
+        state.detectorFormats=await BarcodeDetector.getSupportedFormats();
+        if(state.detectorFormats.length)state.nativeDetector=new BarcodeDetector({formats:state.detectorFormats});
+      }catch(e){console.warn("BarcodeDetector 초기화 실패",e);}
+    }
+    return true;
+  })().catch(function(err){state.zxingReadyPromise=null;throw err;});
+  return state.zxingReadyPromise;
 }
 
 function determineStage(){
@@ -298,70 +318,106 @@ function scanPhotoFile(file){
   if(!file)return;
   ensureScannerLibrary().then(async function(){
     setScannerStatus("고해상도 사진을 ZXing-C++로 분석하고 있습니다.");
-    var direct=await window.ZXingWASM.readBarcodes(file,{formats:activeFormats(),tryHarder:true,tryRotate:true,tryInvert:true,tryDownscale:false,maxNumberOfSymbols:1});
-    if(direct&&direct.length)return direct[0];
-    var bmp=await createImageBitmap(file),max=3200,scale=Math.min(1,max/Math.max(bmp.width,bmp.height));
+    var direct=await window.ZXingWASM.readBarcodes(file,{formats:activeFormats(),tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,tryDownscale:true,maxNumberOfSymbols:4,minLineCount:1,textMode:"Plain"});
+    if(direct&&direct.length)return direct.find(function(x){return x.text&&!x.error;})||direct[0];
+    var bmp=await createImageBitmap(file),max=3600,scale=Math.min(1,max/Math.max(bmp.width,bmp.height));
     var c=$("scanCanvas"),ctx=c.getContext("2d",{willReadFrequently:true});c.width=Math.floor(bmp.width*scale);c.height=Math.floor(bmp.height*scale);
-    ctx.drawImage(bmp,0,0,c.width,c.height);bmp.close&&bmp.close();
-    var img=ctx.getImageData(0,0,c.width,c.height);return await decodeImageData(img);
+    ctx.drawImage(bmp,0,0,c.width,c.height);
+    var nativeResult=await decodeWithNative(c);if(nativeResult){bmp.close&&bmp.close();return nativeResult;}
+    var img=ctx.getImageData(0,0,c.width,c.height),z=await decodeWithZXing(img);bmp.close&&bmp.close();return z;
   }).then(function(result){
     if(!result||!result.text)throw new Error("not found");
     return stopScanner(true).then(function(){applyCode(result.text,result.format||"ZXing-C++ 사진",false);});
   }).catch(function(err){console.error(err);setScannerStatus("사진에서 코드를 찾지 못했습니다.","error");toast("사진에서 코드를 인식하지 못했습니다.");})
   .finally(function(){$("photoScanInput").value="";});
 }
-function getCropRect(video){
+function getRegionRects(video){
   var vw=video.videoWidth,vh=video.videoHeight;
-  var ratio=state.scanMode==="small"?0.42:state.scanMode==="barcode"?0.82:state.scanMode==="qr"?0.68:0.82;
-  var heightRatio=state.scanMode==="barcode"?0.30:state.scanMode==="small"?0.42:state.scanMode==="qr"?0.72:0.66;
-  var w=Math.floor(vw*ratio),h=Math.floor(vh*heightRatio);
-  return {x:Math.floor((vw-w)/2),y:Math.floor((vh-h)/2),w:w,h:h};
-}
-function frameToImageData(video,variant){
-  var rect=getCropRect(video),canvas=$("scanCanvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
-  var scale=state.scanMode==="small"?Math.min(4,1800/rect.w):Math.min(2.2,1600/rect.w);
-  scale=Math.max(1.25,scale);
-  var tw=Math.max(320,Math.floor(rect.w*scale)),th=Math.max(220,Math.floor(rect.h*scale));
-  canvas.width=tw;canvas.height=th;ctx.imageSmoothingEnabled=false;
-  ctx.drawImage(video,rect.x,rect.y,rect.w,rect.h,0,0,tw,th);
-  var image=ctx.getImageData(0,0,tw,th);
-  if(variant===1||variant===2){
-    var d=image.data;
-    for(var i=0;i<d.length;i+=4){
-      var g=Math.round(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114);
-      if(variant===1)g=Math.max(0,Math.min(255,(g-128)*1.65+128));
-      else g=g>145?255:0;
-      d[i]=d[i+1]=d[i+2]=g;
-    }
+  var regions=[{name:"전체",x:0,y:0,w:vw,h:vh}];
+  function centered(name,wr,hr){
+    var w=Math.max(80,Math.floor(vw*wr)),h=Math.max(80,Math.floor(vh*hr));
+    regions.push({name:name,x:Math.floor((vw-w)/2),y:Math.floor((vh-h)/2),w:w,h:h});
   }
-  return image;
+  if(state.scanMode==="barcode"){
+    centered("1D-넓게",0.96,0.38);centered("1D-중앙",0.78,0.24);
+  }else if(state.scanMode==="qr"){
+    centered("2D-넓게",0.82,0.82);centered("2D-중앙",0.56,0.56);
+  }else if(state.scanMode==="small"){
+    centered("소형-넓게",0.58,0.58);centered("소형-중앙",0.34,0.34);centered("소형-가로",0.56,0.24);
+  }else{
+    centered("자동-중앙",0.82,0.68);centered("자동-소형",0.48,0.48);centered("자동-가로",0.90,0.30);
+  }
+  return regions;
 }
-async function decodeImageData(imageData){
+function renderRegion(video,rect,variant){
+  var canvas=$("scanCanvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+  var maxW=state.scanMode==="small"?2200:1800,maxH=state.scanMode==="small"?1600:1350;
+  var scale=Math.min(maxW/rect.w,maxH/rect.h);
+  if(rect.name==="전체")scale=Math.min(1.35,scale);
+  else scale=Math.max(1,Math.min(state.scanMode==="small"?4.5:2.6,scale));
+  var tw=Math.max(240,Math.round(rect.w*scale)),th=Math.max(160,Math.round(rect.h*scale));
+  canvas.width=tw;canvas.height=th;ctx.imageSmoothingEnabled=variant===0;ctx.imageSmoothingQuality="high";
+  ctx.drawImage(video,rect.x,rect.y,rect.w,rect.h,0,0,tw,th);
+  if(variant===0)return {canvas:canvas,imageData:ctx.getImageData(0,0,tw,th),label:rect.name+"/원본"};
+  var image=ctx.getImageData(0,0,tw,th),d=image.data;
+  var hist=new Uint32Array(256),sum=0;
+  for(var i=0;i<d.length;i+=4){var g=Math.round(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114);hist[g]++;sum+=g;d[i]=d[i+1]=d[i+2]=g;}
+  var mean=sum/(d.length/4),threshold=mean;
+  if(variant===2){
+    var total=d.length/4,sumB=0,wB=0,maxV=0,t=0;for(i=0;i<256;i++)sumB+=i*hist[i];
+    for(i=0;i<256;i++){wB+=hist[i];if(!wB)continue;var wF=total-wB;if(!wF)break;sumB-=i*hist[i];var mB=sumB/wB,mF=(sum-sumB)/wF,v=wB*wF*(mB-mF)*(mB-mF);if(v>maxV){maxV=v;t=i;}}threshold=t||mean;
+  }
+  for(i=0;i<d.length;i+=4){
+    var v=d[i];
+    if(variant===1)v=Math.max(0,Math.min(255,(v-mean)*1.9+128));
+    else if(variant===2)v=v>threshold?255:0;
+    else if(variant===3)v=255-v;
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+  ctx.putImageData(image,0,0);
+  return {canvas:canvas,imageData:image,label:rect.name+"/"+(variant===1?"대비":variant===2?"이진화":"반전")};
+}
+async function decodeWithNative(source){
+  if(!state.nativeDetector)return null;
+  try{
+    var formats=nativeFormatsForMode();
+    var detector=formats.length?new BarcodeDetector({formats:formats}):state.nativeDetector;
+    var found=await detector.detect(source);
+    if(found&&found.length)return {text:found[0].rawValue,format:found[0].format||"BarcodeDetector",engine:"Native"};
+  }catch(e){console.debug("native miss",e);}
+  return null;
+}
+async function decodeWithZXing(imageData){
   var options={
-    formats:activeFormats(),tryHarder:true,tryRotate:true,tryInvert:true,
-    tryDownscale:false,maxNumberOfSymbols:1,returnErrors:false
+    formats:activeFormats(),tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,
+    tryDownscale:true,downscaleFactor:2,downscaleThreshold:700,maxNumberOfSymbols:4,
+    minLineCount:1,returnErrors:false,textMode:"Plain",eanAddOnSymbol:"Read"
   };
   var results=await window.ZXingWASM.readBarcodes(imageData,options);
-  return results&&results.length?results[0]:null;
+  if(!results||!results.length)return null;
+  var r=results.find(function(x){return x&&x.text&&!x.error;})||results[0];
+  return r&&r.text?{text:r.text,format:r.format||r.symbology||"ZXing",symbology:r.symbology,engine:"ZXing-C++"}:null;
 }
 async function decodeFrame(){
   if(!state.scanning||state.decodeBusy||state.scanLocked)return;
-  var video=$("scannerVideo");
-  if(!video.videoWidth||video.readyState<2)return;
-  var now=performance.now(),interval=state.scanMode==="small"?120:180;
-  if(now-state.lastDecodeAt<interval)return;
-  state.lastDecodeAt=now;state.decodeBusy=true;
+  var video=$("scannerVideo");if(!video.videoWidth||video.readyState<2)return;
+  var now=performance.now(),interval=state.scanMode==="small"?90:130;if(now-state.lastDecodeAt<interval)return;
+  state.lastDecodeAt=now;state.decodeBusy=true;state.decodeAttempts++;
   try{
-    var variant=state.frameIndex++%3;
-    var result=await decodeImageData(frameToImageData(video,variant));
-    if(result&&result.text)onScan(result.text,result);
-  }catch(e){console.debug("decode miss",e);}
-  finally{state.decodeBusy=false;}
+    /* 네이티브 엔진은 원본 비디오 전체를 먼저 빠르게 검사한다. */
+    if(state.decodeAttempts%2===1){var nativeResult=await decodeWithNative(video);if(nativeResult){onScan(nativeResult.text,nativeResult);return;}}
+    var regions=getRegionRects(video),rect=regions[state.regionIndex++%regions.length];
+    var variant=state.variantIndex++%4,frame=renderRegion(video,rect,variant);
+    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · "+frame.label+" · 시도 "+state.decodeAttempts,"ready");
+    var result=await decodeWithZXing(frame.imageData);
+    if(result)onScan(result.text,result);
+  }catch(e){
+    state.decodeErrors++;state.lastDecodeError=e&&e.message?e.message:String(e);console.warn("decode error",e);
+    setScannerStatus("디코더 오류: "+state.lastDecodeError,"error");
+  }finally{state.decodeBusy=false;}
 }
-function scanningLoop(){
-  if(!state.scanning)return;
-  decodeFrame();state.animationId=requestAnimationFrame(scanningLoop);
-}
+function scanningLoop(){if(!state.scanning)return;decodeFrame();state.animationId=requestAnimationFrame(scanningLoop);}
+
 function chooseRearCamera(devices){
   var videos=devices.filter(function(d){return d.kind==="videoinput";});
   var rear=videos.find(function(d){return /back|rear|environment|후면|후방/i.test(d.label||"");});
@@ -383,7 +439,8 @@ function startScanner(){
     state.stream=await navigator.mediaDevices.getUserMedia(constraints);
     var video=$("scannerVideo");video.srcObject=state.stream;await video.play();
     state.scanning=true;state.scanLocked=false;state.decodeBusy=false;state.frameIndex=0;
-    setScannerStatus(stageLabel(state.stage)+" 인식 대기 중 · ZXing-C++","ready");
+    state.decodeAttempts=0;state.decodeErrors=0;state.regionIndex=0;state.variantIndex=0;state.lastDecodeError="";
+    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 멀티 엔진 준비 완료","ready");
     setupCameraControls();scanningLoop();
   }).catch(function(err){console.error(err);state.scanning=false;setScannerStatus("카메라 또는 WASM 엔진을 실행하지 못했습니다.","error");});
 }
