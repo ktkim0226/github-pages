@@ -32,3 +32,21 @@ dialog{border:0;border-radius:16px;padding:0;width:min(93vw,540px);box-shadow:0 
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:100;background:#0f172a;color:#fff;padding:11px 15px;border-radius:30px;font-size:13px;font-weight:800;box-shadow:0 10px 35px rgba(0,0,0,.3);max-width:90%;text-align:center}
 #testResults{margin:10px 0}.test-line{display:flex;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding:7px 2px;font-size:12px}.pass{color:#15803d}.fail{color:#b91c1c}
 @media(max-width:600px){.option-grid,.summary-grid{grid-template-columns:1fr 1fr}.action-grid{grid-template-columns:1fr 1fr}}
+
+
+/* v4 mobile usability refinements */
+body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+main{padding-left:16px;padding-right:16px}
+.card{padding:18px;margin-bottom:16px}
+input,select,textarea{min-height:48px;padding:13px 14px}
+button,.file-button{min-height:48px;padding:14px}
+.reader-wrap{margin:14px 0;min-height:320px}
+@media(max-width:480px){
+  header{padding-left:20px;padding-right:20px}
+  main{padding-left:14px;padding-right:14px}
+  .card{padding:16px;border-radius:15px}
+  .option-grid,.summary-grid,.action-grid{grid-template-columns:1fr}
+  .inline.buttons{flex-direction:column}
+  .inline.buttons button{width:100%}
+  .reader-wrap{min-height:300px}
+}

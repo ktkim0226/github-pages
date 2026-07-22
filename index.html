@@ -83,7 +83,7 @@
 
     <label for="manualCode">수동 입력</label>
     <div class="inline">
-      <input id="manualCode" autocomplete="off" placeholder="현재 단계의 코드 직접 입력">
+      <input id="manualCode" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" maxlength="64" placeholder="영문 대문자와 숫자만 입력">
       <button id="manualBtn" class="secondary compact" type="button">확인</button>
     </div>
 
@@ -105,8 +105,8 @@
     <label for="wavelength">Wavelength</label>
     <input id="wavelength" autocomplete="off" placeholder="예: 193.10 THz 또는 1552.52 nm">
 
-    <label for="slotNumber">Slot Number <em>숫자 3자리</em></label>
-    <input id="slotNumber" inputmode="numeric" maxlength="3" placeholder="001">
+    <label for="slotNumber">Slot Number <em>첫 글자 0~9/A~F + 숫자 2자리</em></label>
+    <input id="slotNumber" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="3" placeholder="예: F03, A15, 307">
 
     <label for="unitName">유니트명</label>
     <input id="unitName" autocomplete="off" placeholder="예: TNG2M504">
@@ -149,25 +149,11 @@
   </section>
 </main>
 
-<dialog id="confirmDialog">
-  <div class="dialog-body">
-    <h2>스캔값 최종 확인</h2>
-    <p id="confirmStageText"></p>
-    <div class="detected-value" id="detectedValue"></div>
-    <p class="format" id="detectedFormat"></p>
-    <div class="accuracy-box">
-      <strong>정확도 보호 절차</strong>
-      <p>코드가 한 번 인식되면 카메라를 즉시 정지합니다. 실제 라벨 아래 문자열과 반드시 비교해 주세요.</p>
-    </div>
-    <div class="dialog-actions">
-      <button id="rejectBtn" class="secondary" type="button">취소·재스캔</button>
-      <button id="acceptBtn" class="success" type="button">일치 확인 후 반영</button>
-    </div>
-  </div>
-</dialog>
 
 <div id="toast" class="toast hidden" role="status"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
+  onerror="this.onerror=null;this.src='https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';"></script>
 <script src="./app.js"></script>
 </body>
 </html>

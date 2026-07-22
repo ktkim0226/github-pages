@@ -1,10 +1,12 @@
 {
-  "single_scan_only": true,
-  "immediate_stop": true,
-  "duplicate_callback_guard": true,
-  "high_fps": true,
-  "rear_camera": true,
-  "user_confirmation": true,
-  "optional_rack_shelf": true,
-  "pwa": true
+  "scanner_library_preloaded": true,
+  "cdn_fallback": true,
+  "camera_enumeration": true,
+  "rear_camera_selection": true,
+  "facing_mode_fallback": true,
+  "single_scan_immediate_apply": true,
+  "confirmation_dialog_removed": true,
+  "manual_alphanumeric_uppercase": true,
+  "slot_pattern": true,
+  "mobile_spacing": true
 }

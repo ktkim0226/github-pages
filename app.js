@@ -2,18 +2,14 @@
 (function(){
 "use strict";
 
-var APP_VERSION="3.0.0";
+var APP_VERSION="4.0.0";
 var RECORD_KEY="rss_records_v3";
 var CONFIG_KEY="rss_config_v3";
-var LIB_URLS=[
-  "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js",
-  "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"
-];
 
 var state={
   started:false, ring:"", office:"", skipRack:false, skipShelf:false,
   rack:"", shelf:"", slot:"", stage:"rack", records:[],
-  scanner:null, scanning:false, pending:null,
+  scanner:null, scanning:false,
   scanLocked:false, lastDecodedValue:"", lastDecodedAt:0
 };
 
@@ -29,21 +25,11 @@ function toast(msg){
 }
 function vibrate(){if(navigator.vibrate)navigator.vibrate([60,40,60]);}
 
-function loadScript(url){
-  return new Promise(function(resolve,reject){
-    var s=document.createElement("script");
-    s.src=url;s.async=true;s.onload=resolve;s.onerror=reject;
-    document.head.appendChild(s);
-  });
-}
 function ensureScannerLibrary(){
-  if(window.Html5Qrcode)return Promise.resolve();
-  var i=0;
-  function next(){
-    if(i>=LIB_URLS.length)return Promise.reject(new Error("스캐너 라이브러리 로드 실패"));
-    return loadScript(LIB_URLS[i++]).catch(next);
+  if(window.Html5Qrcode && window.Html5QrcodeSupportedFormats){
+    return Promise.resolve();
   }
-  return next();
+  return Promise.reject(new Error("스캐너 라이브러리를 불러오지 못했습니다."));
 }
 
 function determineStage(){
@@ -118,26 +104,32 @@ function editWork(){
   updateUI();window.scrollTo({top:0,behavior:"smooth"});
 }
 function applyCode(value,format,manual){
-  value=clean(value);if(!value){toast("빈 값은 반영할 수 없습니다.");return;}
-  state.pending={value:value,format:format||"알 수 없음",manual:!!manual,stage:state.stage};
-  text("confirmStageText",stageLabel(state.stage)+" 값이 맞는지 실제 라벨과 비교하세요.");
-  text("detectedValue",value);
-  text("detectedFormat","인식 형식: "+state.pending.format+(manual?" · 수동 입력":" · 1회 인식 후 즉시 정지"));
-  $("confirmDialog").showModal();
-}
-function acceptPending(){
-  var p=state.pending;if(!p)return;
-  if(p.stage==="rack"){
-    state.rack=p.value;state.shelf=state.skipShelf?"":state.shelf;state.slot="";
+  value=clean(value);
+  if(!value){toast("빈 값은 반영할 수 없습니다.");return;}
+
+  var appliedStage=state.stage;
+  if(appliedStage==="rack"){
+    state.rack=value;
+    state.shelf=state.skipShelf?"":state.shelf;
+    state.slot="";
     setStage(state.skipShelf?"slot":"shelf");
-  }else if(p.stage==="shelf"){
-    state.shelf=p.value;state.slot="";setStage("slot");
+  }else if(appliedStage==="shelf"){
+    state.shelf=value;
+    state.slot="";
+    setStage("slot");
   }else{
-    state.slot=p.value;$("slotCode").value=p.value;show("slotSection");
-    window.setTimeout(function(){$("wavelength").focus();},150);
+    state.slot=value;
+    $("slotCode").value=value;
+    show("slotSection");
+    window.setTimeout(function(){$("wavelength").focus();},120);
   }
-  state.pending=null;saveLocal();updateUI();vibrate();toast("확인된 값을 반영했습니다.");
+
+  saveLocal();
+  updateUI();
+  vibrate();
+  toast(stageLabel(appliedStage)+" 값이 반영되었습니다.");
 }
+
 function cancelSlot(){
   state.slot="";$("slotCode").value="";$("wavelength").value="";$("slotNumber").value="";$("unitName").value="";$("memo").value="";
   hide("slotSection");setStage("slot");
@@ -145,7 +137,7 @@ function cancelSlot(){
 function saveSlot(){
   var slotNo=clean($("slotNumber").value);
   if(!state.slot){toast("Slot 코드를 먼저 등록하세요.");return;}
-  if(!/^\d{3}$/.test(slotNo)){toast("Slot Number는 숫자 3자리여야 합니다.");return;}
+  if(!/^[0-9A-F][0-9]{2}$/.test(slotNo)){toast("Slot Number는 첫 글자 0~9 또는 A~F, 뒤 두 자리는 숫자여야 합니다.");return;}
   state.records.push({
     id:String(Date.now())+"-"+Math.random().toString(16).slice(2),
     ring:state.ring,office:state.office,
@@ -159,50 +151,93 @@ function saveSlot(){
 }
 
 function onScan(decodedText,decodedResult){
-  var now=Date.now(),value=clean(decodedText);
+  var value=clean(decodedText);
   if(!value||state.scanLocked)return;
 
-  /* 동일 프레임 또는 브라우저 콜백 중복만 차단한다.
-     사용자가 같은 라벨을 여러 번 스캔하도록 요구하지 않는다. */
-  if(value===state.lastDecodedValue && now-state.lastDecodedAt<1500)return;
-
   state.scanLocked=true;
-  state.lastDecodedValue=value;
-  state.lastDecodedAt=now;
-
   var fmt="Barcode/QR";
   try{fmt=decodedResult.result.format.formatName||fmt;}catch(e){}
 
-  text("stageNotice",stageLabel(state.stage)+" 인식 완료 · 확인 화면으로 이동합니다.");
+  text("stageNotice",stageLabel(state.stage)+" 인식 완료");
   stopScanner().then(function(){
     applyCode(value,fmt,false);
-    window.setTimeout(function(){state.scanLocked=false;},600);
+    window.setTimeout(function(){state.scanLocked=false;},500);
   });
 }
 function startScanner(){
   if(state.scanning)return;
+
   ensureScannerLibrary().then(function(){
-    show("readerWrap");hide("scanBtn");show("stopBtn");
-    state.scanner=state.scanner||new Html5Qrcode("reader");
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      throw new Error("이 브라우저는 카메라 API를 지원하지 않습니다.");
+    }
+
+    show("readerWrap");
+    hide("scanBtn");
+    show("stopBtn");
+    text("stageNotice","카메라 권한을 요청하고 있습니다.");
+
+    state.scanner=state.scanner||new Html5Qrcode("reader", false);
+
     var formats=[
-      Html5QrcodeSupportedFormats.QR_CODE,Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,Html5QrcodeSupportedFormats.CODE_93,
-      Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,
-      Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,
-      Html5QrcodeSupportedFormats.ITF,Html5QrcodeSupportedFormats.CODABAR,
-      Html5QrcodeSupportedFormats.DATA_MATRIX,Html5QrcodeSupportedFormats.PDF_417,
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.CODE_93,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.CODABAR,
+      Html5QrcodeSupportedFormats.DATA_MATRIX,
+      Html5QrcodeSupportedFormats.PDF_417,
       Html5QrcodeSupportedFormats.AZTEC
     ];
-    var cfg={fps:18,formatsToSupport:formats,disableFlip:false,rememberLastUsedCamera:true,
-      qrbox:function(w,h){return{width:Math.floor(w*.84),height:Math.max(130,Math.floor(h*.34))};},
-      aspectRatio:1.7777778};
-    return state.scanner.start({facingMode:{exact:"environment"}},cfg,onScan,function(){})
-      .catch(function(){return state.scanner.start({facingMode:"environment"},cfg,onScan,function(){});});
+
+    var cfg={
+      fps:12,
+      formatsToSupport:formats,
+      disableFlip:false,
+      qrbox:function(w,h){
+        var landscape=w>h;
+        return landscape
+          ? {width:Math.floor(w*0.82),height:Math.floor(h*0.46)}
+          : {width:Math.floor(w*0.86),height:Math.floor(h*0.34)};
+      }
+    };
+
+    return Html5Qrcode.getCameras().then(function(cameras){
+      if(!cameras || !cameras.length){
+        throw new Error("사용 가능한 카메라를 찾을 수 없습니다.");
+      }
+
+      var rear=cameras.find(function(c){
+        return /back|rear|environment|후면/i.test(c.label||"");
+      });
+      var cameraId=(rear||cameras[cameras.length-1]).id;
+
+      return state.scanner.start(cameraId,cfg,onScan,function(){});
+    }).catch(function(cameraListError){
+      console.warn("카메라 ID 방식 실패, environment 방식으로 재시도",cameraListError);
+      return state.scanner.start(
+        {facingMode:"environment"},
+        cfg,
+        onScan,
+        function(){}
+      );
+    });
   }).then(function(){
-    state.scanning=true;text("stageNotice",stageLabel(state.stage)+" 스캔 중 · 코드 하나를 중앙 가이드 안에 맞춰 주세요.");
+    state.scanning=true;
+    state.scanLocked=false;
+    text("stageNotice",stageLabel(state.stage)+" 스캔 중 · 코드 하나를 중앙 영역에 맞춰 주세요.");
   }).catch(function(err){
-    state.scanning=false;hide("readerWrap");show("scanBtn");hide("stopBtn");
-    toast("카메라 시작 실패: 권한과 HTTPS 접속을 확인하세요.");
+    state.scanning=false;
+    hide("readerWrap");
+    show("scanBtn");
+    hide("stopBtn");
+    text("stageNotice",stageLabel(state.stage)+" 스캔을 시작할 수 없습니다.");
+    toast("카메라 실행 실패: Safari/Chrome의 카메라 권한과 HTTPS 접속을 확인하세요.");
     console.error(err);
   });
 }
@@ -250,9 +285,8 @@ function runSelfTest(){
     ["카메라 API",!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)],
     ["로컬 저장소",(function(){try{localStorage.setItem("_rss_t","1");localStorage.removeItem("_rss_t");return true;}catch(e){return false;}})()],
     ["파일 다운로드",typeof Blob!=="undefined"&&typeof URL.createObjectURL==="function"],
-    ["다이얼로그",typeof $("confirmDialog").showModal==="function"],
-    ["필수 화면 요소",["ringName","officeName","scanBtn","saveSlotBtn","csvBtn","recordBody"].every(function(id){return !!$(id);})],
-    ["스캐너 라이브러리",!!window.Html5Qrcode]
+        ["필수 화면 요소",["ringName","officeName","scanBtn","saveSlotBtn","csvBtn","recordBody"].every(function(id){return !!$(id);})],
+    ["스캐너 라이브러리",!!window.Html5Qrcode && !!window.Html5QrcodeSupportedFormats]
   ];
   $("testResults").innerHTML=tests.map(function(t){
     return "<div class='test-line'><span>"+esc(t[0])+"</span><strong class='"+(t[1]?"pass":"fail")+"'>"+(t[1]?"PASS":"FAIL")+"</strong></div>";
@@ -263,12 +297,23 @@ $("startWorkBtn").addEventListener("click",startWork);
 $("editWorkBtn").addEventListener("click",editWork);
 $("scanBtn").addEventListener("click",startScanner);
 $("stopBtn").addEventListener("click",stopScanner);
-$("manualBtn").addEventListener("click",function(){var v=clean($("manualCode").value);if(!v){toast("수동값을 입력하세요.");return;}applyCode(v,"수동 입력",true);});
-$("acceptBtn").addEventListener("click",function(){$("confirmDialog").close();acceptPending();$("manualCode").value="";});
-$("rejectBtn").addEventListener("click",function(){$("confirmDialog").close();state.pending=null;toast("취소했습니다.");});
+$("manualBtn").addEventListener("click",function(){
+  var v=clean($("manualCode").value).toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if(!v){toast("영문 대문자와 숫자만 입력하세요.");return;}
+  applyCode(v,"수동 입력",true);
+  $("manualCode").value="";
+});
 $("rescanRackBtn").addEventListener("click",function(){stopScanner();state.rack="";state.shelf=state.skipShelf?"":"";state.slot="";hide("slotSection");setStage("rack");saveLocal();});
 $("rescanShelfBtn").addEventListener("click",function(){stopScanner();state.shelf="";state.slot="";hide("slotSection");setStage("shelf");saveLocal();});
-$("slotNumber").addEventListener("input",function(){this.value=this.value.replace(/\D/g,"").slice(0,3);});
+$("manualCode").addEventListener("input",function(){
+  this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,64);
+});
+$("slotNumber").addEventListener("input",function(){
+  this.value=this.value.toUpperCase().replace(/[^0-9A-F]/g,"").slice(0,3);
+  if(this.value.length>1){
+    this.value=this.value.charAt(0)+this.value.slice(1).replace(/\D/g,"");
+  }
+});
 $("saveSlotBtn").addEventListener("click",saveSlot);
 $("cancelSlotBtn").addEventListener("click",cancelSlot);
 $("csvBtn").addEventListener("click",exportCSV);
