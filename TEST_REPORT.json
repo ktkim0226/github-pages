@@ -1,22 +1,18 @@
 {
-  "version": "12.0.0",
   "checks": {
-    "app_version_v12": true,
-    "service_worker_v12": true,
-    "profile_control": true,
-    "two_stage_decode": true,
-    "native_first": true,
-    "fast_formats_limited": true,
-    "precise_fallback": true,
-    "decode_lock": true,
-    "adaptive_interval": true,
-    "dynamic_confirmation": true,
-    "frame_change_skip": true,
-    "performance_display": true,
-    "all_dom_refs_exist": true,
-    "unit_dropdown_preserved": true,
-    "csv_preserved": true
+    "app_version_13": true,
+    "cache_v13": true,
+    "no_missing_dom_ids": true,
+    "no_duplicate_ids": true,
+    "large_reader_css": true,
+    "advanced_details": true,
+    "overlay_status": true,
+    "quick_controls": true,
+    "all_scanner_controls_present": true,
+    "four_scan_modes": true
   },
+  "scan_mode_count": 4,
   "missing_dom_ids": [],
-  "passed": true
+  "duplicate_ids": [],
+  "pass": true
 }

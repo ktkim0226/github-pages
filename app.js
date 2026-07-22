@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="12.0.0";
+var APP_VERSION="13.0.0";
 var RECORD_KEY="rss_records_v3";
 var CONFIG_KEY="rss_config_v3";
 

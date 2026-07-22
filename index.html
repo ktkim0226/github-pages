@@ -159,7 +159,7 @@
 
 <div id="scannerModal" class="scanner-modal hidden" role="dialog" aria-modal="true" aria-labelledby="scannerTitle">
   <div class="scanner-sheet">
-    <div class="scanner-header">
+    <div class="scanner-header compact-header">
       <div>
         <h2 id="scannerTitle">바코드·QR 스캔</h2>
         <p id="scannerStage">현재 단계</p>
@@ -167,62 +167,65 @@
       <button id="closeScannerBtn" class="scanner-close" type="button" aria-label="스캔 중지">✕</button>
     </div>
 
-    <div class="scan-mode-tabs" role="tablist">
+    <div class="scan-mode-tabs compact-tabs" role="tablist">
       <button class="scan-mode active" data-mode="auto" type="button">자동</button>
-      <button class="scan-mode" data-mode="barcode" type="button">1D 바코드</button>
-      <button class="scan-mode" data-mode="qr" type="button">QR 전용</button>
-      <button class="scan-mode" data-mode="small" type="button">Micro/소형</button>
+      <button class="scan-mode" data-mode="barcode" type="button">1D</button>
+      <button class="scan-mode" data-mode="qr" type="button">QR</button>
+      <button class="scan-mode" data-mode="small" type="button">소형</button>
     </div>
 
-    <div id="scannerStatus" class="scanner-status">카메라를 준비하고 있습니다.</div>
-
-    <div id="readerWrap" class="modal-reader">
+    <div id="readerWrap" class="modal-reader enlarged-reader">
       <video id="scannerVideo" playsinline muted autoplay></video>
       <canvas id="scanCanvas" class="hidden"></canvas>
       <div id="scanOverlay" class="scan-overlay auto-mode">
         <div class="scan-frame"></div>
         <p id="scanGuideText">코드 하나를 화면 중앙에 크게 맞춰 주세요.</p>
       </div>
+      <div id="scannerStatus" class="scanner-status camera-status-overlay">카메라를 준비하고 있습니다.</div>
+      <div class="camera-diagnostics">
+        <div id="performanceStatus" class="quality-status good">프로필 균형</div>
+        <div id="qualityStatus" class="quality-status">영상 분석 중</div>
+        <div id="candidateStatus" class="candidate-status">인식 대기</div>
+      </div>
     </div>
 
-    <div class="camera-controls camera-controls-v12">
-      <label class="camera-select-wrap">
-        <span>카메라</span>
-        <select id="cameraSelect"><option value="">후면 카메라 자동 선택</option></select>
-      </label>
-      <label class="camera-select-wrap performance-profile-wrap">
-        <span>성능 프로필</span>
-        <select id="performanceProfile">
-          <option value="fast">고속</option>
-          <option value="balanced" selected>균형</option>
-          <option value="accurate">정밀</option>
-        </select>
-      </label>
-      <div class="camera-button-row">
-        <button id="focusBtn" class="camera-control" type="button">초점 다시 맞춤</button>
-        <button id="torchBtn" class="camera-control hidden" type="button">조명 켜기</button>
-      </div>
-      <label id="zoomWrap" class="zoom-control hidden">
-        <span>확대</span>
-        <input id="zoomSlider" type="range" min="1" max="1" step="0.1" value="1">
-        <b id="zoomValue">1.0×</b>
-      </label>
-      <div id="quickZoom" class="quick-zoom hidden">
+    <div class="scanner-quick-controls">
+      <button id="focusBtn" class="camera-control compact-control" type="button">초점</button>
+      <button id="torchBtn" class="camera-control compact-control hidden" type="button">조명</button>
+      <div id="quickZoom" class="quick-zoom compact-zoom hidden">
         <button type="button" data-zoom="1">1×</button>
         <button type="button" data-zoom="2">2×</button>
         <button type="button" data-zoom="3">3×</button>
       </div>
+      <button id="stopScannerBtn" class="scanner-stop compact-stop" type="button">종료</button>
     </div>
-    <div id="performanceStatus" class="quality-status good">프로필 균형 · 평균 판독 측정 중</div>
-    <div id="qualityStatus" class="quality-status">밝기와 초점 상태를 분석합니다.</div>
-    <div id="candidateStatus" class="candidate-status">동일한 값이 반복 인식되면 자동 확정합니다.</div>
 
-    <label class="photo-scan-button">
-      고해상도 사진으로 인식
-      <input id="photoScanInput" type="file" accept="image/*" capture="environment">
-    </label>
-    <button id="stopScannerBtn" class="scanner-stop" type="button">스캔 중지</button>
-    <p class="scanner-tip">5mm 내외 코드는 Micro/소형 모드에서 확대하세요. 고속 경로로 먼저 판독하고 실패 시 자동으로 정밀 분석합니다.</p>
+    <details class="scanner-advanced">
+      <summary>고급 설정 · 사진 인식</summary>
+      <div class="camera-controls camera-controls-v12 compact-advanced-grid">
+        <label class="camera-select-wrap">
+          <span>카메라</span>
+          <select id="cameraSelect"><option value="">후면 카메라 자동 선택</option></select>
+        </label>
+        <label class="camera-select-wrap performance-profile-wrap">
+          <span>성능 프로필</span>
+          <select id="performanceProfile">
+            <option value="fast">고속</option>
+            <option value="balanced" selected>균형</option>
+            <option value="accurate">정밀</option>
+          </select>
+        </label>
+        <label id="zoomWrap" class="zoom-control hidden">
+          <span>세부 확대</span>
+          <input id="zoomSlider" type="range" min="1" max="1" step="0.1" value="1">
+          <b id="zoomValue">1.0×</b>
+        </label>
+        <label class="photo-scan-button compact-photo-button">
+          고해상도 사진으로 인식
+          <input id="photoScanInput" type="file" accept="image/*" capture="environment">
+        </label>
+      </div>
+    </details>
   </div>
 </div>
 
