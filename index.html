@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="설비 스캐너">
+  <title>링/국사 Rack·Shelf·Slot 스캐너</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header>
+  <div>
+    <h1>설비 바코드·QR 스캐너</h1>
+    <p>링명·국사명 → 선택적 Rack/Shelf → Slot 순차 등록</p>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <div id="envStatus" class="status warn">실행 환경을 확인하고 있습니다.</div>
+    <p class="hint">GitHub Pages HTTPS 주소를 iPhone Safari 또는 Android Chrome에서 직접 열어 주세요.</p>
+  </section>
+
+  <section class="card" id="siteSection">
+    <div class="section-title">
+      <span class="step">1</span>
+      <h2>작업 기본정보</h2>
+    </div>
+
+    <label for="ringName">링명 <em>필수</em></label>
+    <input id="ringName" autocomplete="off" placeholder="예: 서울-중부 Ring">
+
+    <label for="officeName">국사명 <em>필수</em></label>
+    <input id="officeName" autocomplete="off" placeholder="예: 관악국사">
+
+    <div class="option-grid">
+      <label class="check-card">
+        <input id="skipRack" type="checkbox">
+        <span><strong>Rack 스캔 생략</strong><small>Rack 바코드가 없거나 필요하지 않은 경우</small></span>
+      </label>
+      <label class="check-card">
+        <input id="skipShelf" type="checkbox">
+        <span><strong>Shelf 스캔 생략</strong><small>Shelf 바코드가 없거나 필요하지 않은 경우</small></span>
+      </label>
+    </div>
+
+    <button id="startWorkBtn" class="primary" type="button">작업 시작</button>
+    <button id="editWorkBtn" class="secondary hidden" type="button">기본정보 수정</button>
+  </section>
+
+  <section class="card hidden" id="workflowSection">
+    <div class="section-title">
+      <span class="step">2</span>
+      <h2>순차 스캔</h2>
+    </div>
+
+    <div class="summary-grid">
+      <div><b>링명</b><span id="ringView">-</span></div>
+      <div><b>국사명</b><span id="officeView">-</span></div>
+      <div><b>Rack</b><span id="rackView">-</span></div>
+      <div><b>Shelf</b><span id="shelfView">-</span></div>
+      <div><b>Slot</b><span id="slotView">-</span></div>
+      <div><b>다음 단계</b><span id="stageView">-</span></div>
+    </div>
+
+    <div id="stageNotice" class="status info"></div>
+
+    <button id="scanBtn" class="primary" type="button">카메라 스캔 시작</button>
+    <button id="stopBtn" class="secondary hidden" type="button">카메라 중지</button>
+
+    <div id="readerWrap" class="reader-wrap hidden">
+      <div id="reader"></div>
+      <div class="scan-guide">
+        <span></span>
+        <p>코드 하나만 중앙 가이드 안에 맞춰 주세요.</p>
+      </div>
+    </div>
+
+    <label for="manualCode">수동 입력</label>
+    <div class="inline">
+      <input id="manualCode" autocomplete="off" placeholder="현재 단계의 코드 직접 입력">
+      <button id="manualBtn" class="secondary compact" type="button">확인</button>
+    </div>
+
+    <div class="inline buttons">
+      <button id="rescanRackBtn" class="secondary" type="button">Rack 다시 등록</button>
+      <button id="rescanShelfBtn" class="secondary" type="button">Shelf 다시 등록</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="slotSection">
+    <div class="section-title">
+      <span class="step">3</span>
+      <h2>Slot 상세정보</h2>
+    </div>
+
+    <label for="slotCode">Slot 바코드·QR 값</label>
+    <input id="slotCode" readonly>
+
+    <label for="wavelength">Wavelength</label>
+    <input id="wavelength" autocomplete="off" placeholder="예: 193.10 THz 또는 1552.52 nm">
+
+    <label for="slotNumber">Slot Number <em>숫자 3자리</em></label>
+    <input id="slotNumber" inputmode="numeric" maxlength="3" placeholder="001">
+
+    <label for="unitName">유니트명</label>
+    <input id="unitName" autocomplete="off" placeholder="예: TNG2M504">
+
+    <label for="memo">비고</label>
+    <textarea id="memo" rows="3" placeholder="선택 입력"></textarea>
+
+    <button id="saveSlotBtn" class="success" type="button">현재 Slot 저장 후 다음 Slot 스캔</button>
+    <button id="cancelSlotBtn" class="secondary" type="button">Slot 입력 취소</button>
+  </section>
+
+  <section class="card hidden" id="dataSection">
+    <div class="section-title">
+      <span class="step">4</span>
+      <h2>저장 데이터 <span id="recordCount" class="badge">0</span></h2>
+    </div>
+
+    <div class="action-grid">
+      <button id="csvBtn" class="secondary" type="button">CSV 내보내기</button>
+      <button id="jsonBtn" class="secondary" type="button">백업 JSON</button>
+      <label class="file-button secondary">JSON 복원<input id="jsonImport" type="file" accept=".json,application/json"></label>
+      <button id="clearBtn" class="danger" type="button">전체 데이터 삭제</button>
+      <button id="selfTestBtn" class="primary" type="button">기능 자체 테스트</button>
+    </div>
+
+    <div id="testResults"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>No.</th><th>링명</th><th>국사명</th><th>Rack</th><th>Shelf</th>
+            <th>Slot</th><th>Wavelength</th><th>Slot No.</th><th>유니트명</th>
+            <th>비고</th><th>등록시각</th><th>삭제</th>
+          </tr>
+        </thead>
+        <tbody id="recordBody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<dialog id="confirmDialog">
+  <div class="dialog-body">
+    <h2>스캔값 최종 확인</h2>
+    <p id="confirmStageText"></p>
+    <div class="detected-value" id="detectedValue"></div>
+    <p class="format" id="detectedFormat"></p>
+    <div class="accuracy-box">
+      <strong>정확도 보호 절차</strong>
+      <p>코드가 한 번 인식되면 카메라를 즉시 정지합니다. 실제 라벨 아래 문자열과 반드시 비교해 주세요.</p>
+    </div>
+    <div class="dialog-actions">
+      <button id="rejectBtn" class="secondary" type="button">취소·재스캔</button>
+      <button id="acceptBtn" class="success" type="button">일치 확인 후 반영</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script src="./app.js"></script>
+</body>
+</html>

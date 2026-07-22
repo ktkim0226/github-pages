@@ -1,0 +1,10 @@
+{
+  "single_scan_only": true,
+  "immediate_stop": true,
+  "duplicate_callback_guard": true,
+  "high_fps": true,
+  "rear_camera": true,
+  "user_confirmation": true,
+  "optional_rack_shelf": true,
+  "pwa": true
+}
