@@ -26,7 +26,7 @@
     <p class="hint">GitHub Pages HTTPS 주소를 iPhone Safari 또는 Android Chrome에서 직접 열어 주세요.</p>
   </section>
 
-  <section class="card" id="siteSection">
+  <section class="card section-basic" id="siteSection">
     <div class="section-title">
       <span class="step">1</span>
       <h2>작업 기본정보</h2>
@@ -53,7 +53,7 @@
     <button id="editWorkBtn" class="secondary hidden" type="button">기본정보 수정</button>
   </section>
 
-  <section class="card hidden" id="workflowSection">
+  <section class="card section-scan hidden" id="workflowSection">
     <div class="section-title">
       <span class="step">2</span>
       <h2>순차 스캔</h2>
@@ -70,16 +70,8 @@
 
     <div id="stageNotice" class="status info"></div>
 
-    <button id="scanBtn" class="primary" type="button">카메라 스캔 시작</button>
-    <button id="stopBtn" class="secondary hidden" type="button">카메라 중지</button>
-
-    <div id="readerWrap" class="reader-wrap hidden">
-      <div id="reader"></div>
-      <div class="scan-guide">
-        <span></span>
-        <p>코드 하나만 중앙 가이드 안에 맞춰 주세요.</p>
-      </div>
-    </div>
+    <button id="scanBtn" class="primary scan-launch" type="button">카메라 스캔 시작</button>
+    <p class="scan-help">인식이 어려우면 팝업에서 <b>1D 바코드</b> 또는 <b>QR 전용</b> 모드로 변경하세요.</p>
 
     <label for="manualCode">수동 입력</label>
     <div class="inline">
@@ -93,7 +85,7 @@
     </div>
   </section>
 
-  <section class="card hidden" id="slotSection">
+  <section class="card section-detail hidden" id="slotSection">
     <div class="section-title">
       <span class="step">3</span>
       <h2>Slot 상세정보</h2>
@@ -118,7 +110,7 @@
     <button id="cancelSlotBtn" class="secondary" type="button">Slot 입력 취소</button>
   </section>
 
-  <section class="card hidden" id="dataSection">
+  <section class="card section-data hidden" id="dataSection">
     <div class="section-title">
       <span class="step">4</span>
       <h2>저장 데이터 <span id="recordCount" class="badge">0</span></h2>
@@ -149,6 +141,47 @@
   </section>
 </main>
 
+
+
+<div id="scannerModal" class="scanner-modal hidden" role="dialog" aria-modal="true" aria-labelledby="scannerTitle">
+  <div class="scanner-sheet">
+    <div class="scanner-header">
+      <div>
+        <h2 id="scannerTitle">바코드·QR 스캔</h2>
+        <p id="scannerStage">현재 단계</p>
+      </div>
+      <button id="closeScannerBtn" class="scanner-close" type="button" aria-label="스캔 중지">✕</button>
+    </div>
+
+    <div class="scan-mode-tabs" role="tablist">
+      <button class="scan-mode active" data-mode="auto" type="button">자동</button>
+      <button class="scan-mode" data-mode="barcode" type="button">1D 바코드</button>
+      <button class="scan-mode" data-mode="qr" type="button">QR 전용</button>
+    </div>
+
+    <div id="scannerStatus" class="scanner-status">카메라를 준비하고 있습니다.</div>
+
+    <div id="readerWrap" class="modal-reader">
+      <div id="reader"></div>
+      <div id="scanOverlay" class="scan-overlay auto-mode">
+        <div class="scan-frame"></div>
+        <p id="scanGuideText">코드 하나를 화면 중앙에 크게 맞춰 주세요.</p>
+      </div>
+    </div>
+
+    <div class="camera-controls">
+      <button id="torchBtn" class="camera-control hidden" type="button">조명 켜기</button>
+      <label id="zoomWrap" class="zoom-control hidden">
+        <span>확대</span>
+        <input id="zoomSlider" type="range" min="1" max="1" step="0.1" value="1">
+        <b id="zoomValue">1.0×</b>
+      </label>
+    </div>
+
+    <button id="stopScannerBtn" class="scanner-stop" type="button">스캔 중지</button>
+    <p class="scanner-tip">작은 바코드는 카메라를 너무 가까이 대지 말고 초점이 잡힌 뒤 1D 바코드 모드를 사용하세요.</p>
+  </div>
+</div>
 
 <div id="toast" class="toast hidden" role="status"></div>
 

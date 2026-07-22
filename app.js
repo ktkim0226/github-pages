@@ -2,14 +2,14 @@
 (function(){
 "use strict";
 
-var APP_VERSION="4.0.0";
+var APP_VERSION="5.0.0";
 var RECORD_KEY="rss_records_v3";
 var CONFIG_KEY="rss_config_v3";
 
 var state={
   started:false, ring:"", office:"", skipRack:false, skipShelf:false,
   rack:"", shelf:"", slot:"", stage:"rack", records:[],
-  scanner:null, scanning:false,
+  scanner:null, scanning:false, scanMode:"auto", torchOn:false, cameraCapabilities:null,
   scanLocked:false, lastDecodedValue:"", lastDecodedAt:0
 };
 
@@ -24,6 +24,86 @@ function toast(msg){
   clearTimeout(toast.t);toast.t=setTimeout(function(){hide("toast");},2600);
 }
 function vibrate(){if(navigator.vibrate)navigator.vibrate([60,40,60]);}
+
+function openScannerModal(){
+  show("scannerModal");
+  document.documentElement.classList.add("scan-open");
+  document.body.classList.add("scan-open");
+  text("scannerStage",stageLabel(state.stage)+" 스캔");
+}
+function closeScannerModal(){
+  hide("scannerModal");
+  document.documentElement.classList.remove("scan-open");
+  document.body.classList.remove("scan-open");
+  state.torchOn=false;
+}
+function setScannerStatus(message,type){
+  var el=$("scannerStatus");
+  el.textContent=message;
+  el.className="scanner-status"+(type?" "+type:"");
+}
+function activeFormats(){
+  if(state.scanMode==="barcode"){
+    return [
+      Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.CODE_93,Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.CODABAR
+    ];
+  }
+  if(state.scanMode==="qr"){
+    return [
+      Html5QrcodeSupportedFormats.QR_CODE,Html5QrcodeSupportedFormats.DATA_MATRIX,
+      Html5QrcodeSupportedFormats.AZTEC,Html5QrcodeSupportedFormats.PDF_417
+    ];
+  }
+  return undefined; /* 미지정 시 라이브러리가 지원하는 전체 형식을 검사 */
+}
+function scanRegion(width,height){
+  if(state.scanMode==="barcode"){
+    return {width:Math.floor(width*.94),height:Math.max(120,Math.floor(height*.28))};
+  }
+  if(state.scanMode==="qr"){
+    var side=Math.floor(Math.min(width*.86,height*.66));
+    return {width:side,height:side};
+  }
+  /* 자동 모드는 넓은 영역을 검사해 QR와 1D를 모두 포착 */
+  return {width:Math.floor(width*.94),height:Math.floor(height*.62)};
+}
+function updateModeUI(){
+  document.querySelectorAll(".scan-mode").forEach(function(btn){
+    btn.classList.toggle("active",btn.dataset.mode===state.scanMode);
+  });
+  var overlay=$("scanOverlay");
+  overlay.className="scan-overlay "+state.scanMode+"-mode";
+  text("scanGuideText",state.scanMode==="barcode"
+    ?"바코드 막대가 수평이 되도록 가로 프레임에 크게 맞춰 주세요."
+    :state.scanMode==="qr"
+      ?"QR 코드 전체 모서리가 사각 프레임 안에 들어오게 맞춰 주세요."
+      :"코드 하나를 화면 중앙에 크게 맞춰 주세요.");
+}
+function setupCameraControls(){
+  hide("torchBtn");hide("zoomWrap");
+  state.cameraCapabilities=null;
+  try{
+    var caps=state.scanner.getRunningTrackCameraCapabilities();
+    state.cameraCapabilities=caps;
+    if(caps && caps.torchFeature && caps.torchFeature().isSupported()){
+      show("torchBtn");
+      $("torchBtn").textContent="조명 켜기";
+    }
+    if(caps && caps.zoomFeature && caps.zoomFeature().isSupported()){
+      var z=caps.zoomFeature();
+      $("zoomSlider").min=z.min();
+      $("zoomSlider").max=z.max();
+      $("zoomSlider").step=z.step()||0.1;
+      $("zoomSlider").value=z.value();
+      text("zoomValue",Number(z.value()).toFixed(1)+"×");
+      show("zoomWrap");
+    }
+  }catch(e){console.warn("카메라 부가기능 미지원",e);}
+}
 
 function ensureScannerLibrary(){
   if(window.Html5Qrcode && window.Html5QrcodeSupportedFormats){
@@ -158,7 +238,7 @@ function onScan(decodedText,decodedResult){
   var fmt="Barcode/QR";
   try{fmt=decodedResult.result.format.formatName||fmt;}catch(e){}
 
-  text("stageNotice",stageLabel(state.stage)+" 인식 완료");
+  setScannerStatus(stageLabel(state.stage)+" 인식 완료","success");
   stopScanner().then(function(){
     applyCode(value,fmt,false);
     window.setTimeout(function(){state.scanLocked=false;},500);
@@ -166,87 +246,64 @@ function onScan(decodedText,decodedResult){
 }
 function startScanner(){
   if(state.scanning)return;
+  openScannerModal();
+  updateModeUI();
+  setScannerStatus("카메라 권한을 요청하고 있습니다.");
 
   ensureScannerLibrary().then(function(){
-    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      throw new Error("이 브라우저는 카메라 API를 지원하지 않습니다.");
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+      throw new Error("카메라 API 미지원");
     }
 
-    show("readerWrap");
-    hide("scanBtn");
-    show("stopBtn");
-    text("stageNotice","카메라 권한을 요청하고 있습니다.");
+    state.scanner=state.scanner||new Html5Qrcode("reader",{
+      verbose:false,
+      experimentalFeatures:{useBarCodeDetectorIfSupported:true}
+    });
 
-    state.scanner=state.scanner||new Html5Qrcode("reader", false);
-
-    var formats=[
-      Html5QrcodeSupportedFormats.QR_CODE,
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.CODE_93,
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,
-      Html5QrcodeSupportedFormats.UPC_A,
-      Html5QrcodeSupportedFormats.UPC_E,
-      Html5QrcodeSupportedFormats.ITF,
-      Html5QrcodeSupportedFormats.CODABAR,
-      Html5QrcodeSupportedFormats.DATA_MATRIX,
-      Html5QrcodeSupportedFormats.PDF_417,
-      Html5QrcodeSupportedFormats.AZTEC
-    ];
-
-    var cfg={
-      fps:12,
-      formatsToSupport:formats,
+    var config={
+      fps:15,
       disableFlip:false,
-      qrbox:function(w,h){
-        var landscape=w>h;
-        return landscape
-          ? {width:Math.floor(w*0.82),height:Math.floor(h*0.46)}
-          : {width:Math.floor(w*0.86),height:Math.floor(h*0.34)};
+      qrbox:scanRegion,
+      aspectRatio:window.innerWidth>window.innerHeight?1.7777778:1.3333333,
+      videoConstraints:{
+        facingMode:{ideal:"environment"},
+        width:{ideal:1920},
+        height:{ideal:1080},
+        focusMode:{ideal:"continuous"}
       }
     };
+    var formats=activeFormats();
+    if(formats)config.formatsToSupport=formats;
 
     return Html5Qrcode.getCameras().then(function(cameras){
-      if(!cameras || !cameras.length){
-        throw new Error("사용 가능한 카메라를 찾을 수 없습니다.");
-      }
-
-      var rear=cameras.find(function(c){
-        return /back|rear|environment|후면/i.test(c.label||"");
-      });
-      var cameraId=(rear||cameras[cameras.length-1]).id;
-
-      return state.scanner.start(cameraId,cfg,onScan,function(){});
-    }).catch(function(cameraListError){
-      console.warn("카메라 ID 방식 실패, environment 방식으로 재시도",cameraListError);
-      return state.scanner.start(
-        {facingMode:"environment"},
-        cfg,
-        onScan,
-        function(){}
-      );
+      if(!cameras||!cameras.length)throw new Error("카메라 없음");
+      var rear=cameras.find(function(c){return /back|rear|environment|후면/i.test(c.label||"");});
+      var selected=(rear||cameras[cameras.length-1]).id;
+      return state.scanner.start(selected,config,onScan,function(){});
+    }).catch(function(firstError){
+      console.warn("카메라 ID 실행 실패, 후면 조건으로 재시도",firstError);
+      return state.scanner.start({facingMode:{ideal:"environment"}},config,onScan,function(){});
     });
   }).then(function(){
     state.scanning=true;
     state.scanLocked=false;
-    text("stageNotice",stageLabel(state.stage)+" 스캔 중 · 코드 하나를 중앙 영역에 맞춰 주세요.");
+    setScannerStatus(stageLabel(state.stage)+" 인식 대기 중","ready");
+    setupCameraControls();
   }).catch(function(err){
-    state.scanning=false;
-    hide("readerWrap");
-    show("scanBtn");
-    hide("stopBtn");
-    text("stageNotice",stageLabel(state.stage)+" 스캔을 시작할 수 없습니다.");
-    toast("카메라 실행 실패: Safari/Chrome의 카메라 권한과 HTTPS 접속을 확인하세요.");
     console.error(err);
+    state.scanning=false;
+    setScannerStatus("카메라를 실행하지 못했습니다. HTTPS와 카메라 권한을 확인하세요.","error");
   });
 }
-function stopScanner(){
-  if(!state.scanner||!state.scanning){hide("readerWrap");show("scanBtn");hide("stopBtn");return Promise.resolve();}
-  return state.scanner.stop().catch(function(){}).then(function(){
-    state.scanning=false;hide("readerWrap");show("scanBtn");hide("stopBtn");
-    text("stageNotice",stageLabel(state.stage)+" 바코드 또는 QR 코드를 스캔하세요.");
-  });
+function stopScanner(closeModal){
+  var done=function(){
+    state.scanning=false;
+    state.scanLocked=false;
+    hide("torchBtn");hide("zoomWrap");
+    if(closeModal!==false)closeScannerModal();
+  };
+  if(!state.scanner||!state.scanning){done();return Promise.resolve();}
+  return state.scanner.stop().catch(function(e){console.warn(e);}).then(done);
 }
 
 function csvEscape(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"';}
@@ -296,7 +353,32 @@ function runSelfTest(){
 $("startWorkBtn").addEventListener("click",startWork);
 $("editWorkBtn").addEventListener("click",editWork);
 $("scanBtn").addEventListener("click",startScanner);
-$("stopBtn").addEventListener("click",stopScanner);
+$("stopScannerBtn").addEventListener("click",function(){stopScanner(true);});
+$("closeScannerBtn").addEventListener("click",function(){stopScanner(true);});
+document.querySelectorAll(".scan-mode").forEach(function(btn){
+  btn.addEventListener("click",function(){
+    var next=btn.dataset.mode;
+    if(next===state.scanMode)return;
+    state.scanMode=next;
+    updateModeUI();
+    setScannerStatus("스캔 모드를 변경하고 카메라를 다시 시작합니다.");
+    stopScanner(false).then(startScanner);
+  });
+});
+$("torchBtn").addEventListener("click",function(){
+  if(!state.scanner)return;
+  state.torchOn=!state.torchOn;
+  state.scanner.applyVideoConstraints({advanced:[{torch:state.torchOn}]}).then(function(){
+    $("torchBtn").textContent=state.torchOn?"조명 끄기":"조명 켜기";
+  }).catch(function(){state.torchOn=false;toast("이 기기에서는 조명을 제어할 수 없습니다.");});
+});
+$("zoomSlider").addEventListener("input",function(){
+  var value=Number(this.value);
+  text("zoomValue",value.toFixed(1)+"×");
+  if(state.scanner){
+    state.scanner.applyVideoConstraints({advanced:[{zoom:value}]}).catch(function(){});
+  }
+});
 $("manualBtn").addEventListener("click",function(){
   var v=clean($("manualCode").value).toUpperCase().replace(/[^A-Z0-9]/g,"");
   if(!v){toast("영문 대문자와 숫자만 입력하세요.");return;}
@@ -330,8 +412,8 @@ function environmentCheck(){
   else{text("envStatus","현재 브라우저에서 카메라 API를 사용할 수 없습니다.");$("envStatus").className="status bad";}
 }
 if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(console.error);});}
-document.addEventListener("visibilitychange",function(){if(document.hidden)stopScanner();});
-window.addEventListener("pagehide",stopScanner);
+document.addEventListener("visibilitychange",function(){if(document.hidden)stopScanner(true);});
+window.addEventListener("pagehide",function(){stopScanner(true);});
 
 restoreLocal();environmentCheck();updateUI();
 ensureScannerLibrary().catch(function(){});

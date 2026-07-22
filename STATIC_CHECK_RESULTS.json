@@ -1,12 +1,11 @@
 {
-  "scanner_library_preloaded": true,
-  "cdn_fallback": true,
-  "camera_enumeration": true,
-  "rear_camera_selection": true,
-  "facing_mode_fallback": true,
-  "single_scan_immediate_apply": true,
-  "confirmation_dialog_removed": true,
-  "manual_alphanumeric_uppercase": true,
-  "slot_pattern": true,
-  "mobile_spacing": true
+  "modal_scanner": true,
+  "scroll_lock": true,
+  "stop_buttons": true,
+  "scan_modes": true,
+  "full_formats_auto": true,
+  "barcode_detector": true,
+  "high_resolution_constraints": true,
+  "torch_zoom": true,
+  "colored_sections": true
 }
