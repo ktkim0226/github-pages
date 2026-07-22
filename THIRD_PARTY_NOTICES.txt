@@ -1,0 +1,8 @@
+ZXing-C++ WebAssembly dependency
+
+Package: zxing-wasm 3.1.2
+Project: Sec-ant/zxing-wasm
+License: MIT
+Core decoder: zxing-cpp
+License: Apache License 2.0
+Runtime CDN paths are pinned to zxing-wasm 3.1.2.

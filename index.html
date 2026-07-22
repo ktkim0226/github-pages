@@ -62,9 +62,9 @@
     <div class="summary-grid">
       <div><b>링명</b><span id="ringView">-</span></div>
       <div><b>국사명</b><span id="officeView">-</span></div>
-      <div><b>Rack</b><span id="rackView">-</span></div>
-      <div><b>Shelf</b><span id="shelfView">-</span></div>
-      <div><b>Slot</b><span id="slotView">-</span></div>
+      <button id="rackSelectBtn" class="summary-select" type="button"><b>Rack</b><span id="rackView">-</span><small>선택하여 수정</small></button>
+      <button id="shelfSelectBtn" class="summary-select" type="button"><b>Shelf</b><span id="shelfView">-</span><small>선택하여 수정</small></button>
+      <button id="slotSelectBtn" class="summary-select" type="button"><b>Slot</b><span id="slotView">-</span><small>선택하여 수정</small></button>
       <div><b>다음 단계</b><span id="stageView">-</span></div>
     </div>
 
@@ -79,10 +79,7 @@
       <button id="manualBtn" class="secondary compact" type="button">확인</button>
     </div>
 
-    <div class="inline buttons">
-      <button id="rescanRackBtn" class="secondary" type="button">Rack 다시 등록</button>
-      <button id="rescanShelfBtn" class="secondary" type="button">Shelf 다시 등록</button>
-    </div>
+    <button id="resetCurrentBtn" class="danger-outline" type="button">입력 중인 정보 전체 초기화</button>
   </section>
 
   <section class="card section-detail hidden" id="slotSection">
@@ -116,15 +113,9 @@
       <h2>저장 데이터 <span id="recordCount" class="badge">0</span></h2>
     </div>
 
-    <div class="action-grid">
-      <button id="csvBtn" class="secondary" type="button">CSV 내보내기</button>
-      <button id="jsonBtn" class="secondary" type="button">백업 JSON</button>
-      <label class="file-button secondary">JSON 복원<input id="jsonImport" type="file" accept=".json,application/json"></label>
-      <button id="clearBtn" class="danger" type="button">전체 데이터 삭제</button>
-      <button id="selfTestBtn" class="primary" type="button">기능 자체 테스트</button>
+    <div class="action-grid csv-only">
+      <button id="csvBtn" class="success" type="button">CSV 내보내기</button>
     </div>
-
-    <div id="testResults"></div>
 
     <div class="table-wrap">
       <table>
@@ -143,6 +134,20 @@
 
 
 
+
+<div id="codeEditModal" class="code-edit-modal hidden" role="dialog" aria-modal="true" aria-labelledby="codeEditTitle">
+  <div class="code-edit-sheet">
+    <h2 id="codeEditTitle">바코드 수정</h2>
+    <p id="codeEditCurrent">현재 값</p>
+    <button id="editRescanBtn" class="primary" type="button">재스캔</button>
+    <label for="editManualCode">재수동 입력</label>
+    <input id="editManualCode" autocomplete="off" autocapitalize="characters" spellcheck="false"
+      maxlength="64" placeholder="영문 대문자와 숫자만 입력">
+    <button id="editManualApplyBtn" class="secondary" type="button">수동 입력 반영</button>
+    <button id="closeCodeEditBtn" class="plain-button" type="button">닫기</button>
+  </div>
+</div>
+
 <div id="scannerModal" class="scanner-modal hidden" role="dialog" aria-modal="true" aria-labelledby="scannerTitle">
   <div class="scanner-sheet">
     <div class="scanner-header">
@@ -157,12 +162,14 @@
       <button class="scan-mode active" data-mode="auto" type="button">자동</button>
       <button class="scan-mode" data-mode="barcode" type="button">1D 바코드</button>
       <button class="scan-mode" data-mode="qr" type="button">QR 전용</button>
+      <button class="scan-mode" data-mode="small" type="button">Micro/소형</button>
     </div>
 
     <div id="scannerStatus" class="scanner-status">카메라를 준비하고 있습니다.</div>
 
     <div id="readerWrap" class="modal-reader">
-      <div id="reader"></div>
+      <video id="scannerVideo" playsinline muted autoplay></video>
+      <canvas id="scanCanvas" class="hidden"></canvas>
       <div id="scanOverlay" class="scan-overlay auto-mode">
         <div class="scan-frame"></div>
         <p id="scanGuideText">코드 하나를 화면 중앙에 크게 맞춰 주세요.</p>
@@ -178,15 +185,20 @@
       </label>
     </div>
 
+    <label class="photo-scan-button">
+      고해상도 사진으로 인식
+      <input id="photoScanInput" type="file" accept="image/*" capture="environment">
+    </label>
     <button id="stopScannerBtn" class="scanner-stop" type="button">스캔 중지</button>
-    <p class="scanner-tip">작은 바코드는 카메라를 너무 가까이 대지 말고 초점이 잡힌 뒤 1D 바코드 모드를 사용하세요.</p>
+    <p class="scanner-tip">5mm 내외 및 Micro QR은 Micro/소형 모드에서 확대하거나 고해상도 사진 인식을 사용하세요.</p>
   </div>
 </div>
 
 <div id="toast" class="toast hidden" role="status"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"
-  onerror="this.onerror=null;this.src='https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';"></script>
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.2/dist/iife/reader/index.js"
+  crossorigin="anonymous"
+  onerror="this.onerror=null;this.src='https://unpkg.com/zxing-wasm@3.1.2/dist/iife/reader/index.js';"></script>
 <script src="./app.js"></script>
 </body>
 </html>
