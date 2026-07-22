@@ -2,9 +2,22 @@
 (function(){
 "use strict";
 
-var APP_VERSION="9.0.0";
+var APP_VERSION="10.0.0";
 var RECORD_KEY="rss_records_v3";
 var CONFIG_KEY="rss_config_v3";
+
+var UNIT_OPTIONS={
+  "OSN6800/9800 UPS":["12DCP","13DCP","12LSX","14LSX","15LSC","17LSC","19LSC","15LTX","17LTX","12LOG","11LOA","12TMX"],
+  "OSN9800 M12":["G2DCP","G1M504","G2M504","G1M520","G1M210","G3MA08G1","G3MA08GU"]
+};
+function populateUnitNames(selected){
+  var category=clean($("unitCategory").value),unit=$("unitName"),items=UNIT_OPTIONS[category]||[];
+  unit.innerHTML="";
+  var first=document.createElement("option");first.value="";first.textContent=category?"유니트명을 선택하세요":"먼저 장비 카테고리를 선택하세요";unit.appendChild(first);
+  items.forEach(function(name){var opt=document.createElement("option");opt.value=name;opt.textContent=name;unit.appendChild(opt);});
+  unit.disabled=!category;
+  if(selected&&items.indexOf(selected)>=0)unit.value=selected;
+}
 
 var state={
   started:false, ring:"", office:"", skipRack:false, skipShelf:false,
@@ -181,7 +194,7 @@ function renderRecords(){
   text("recordCount",String(state.records.length));
   var body=$("recordBody"),html="";
   state.records.forEach(function(r,i){
-    html+="<tr><td>"+(i+1)+"</td><td>"+esc(r.ring)+"</td><td>"+esc(r.office)+"</td><td>"+esc(r.rack)+"</td><td>"+esc(r.shelf)+"</td><td>"+esc(r.slot)+"</td><td>"+esc(r.wavelength)+"</td><td>"+esc(r.slotNumber)+"</td><td>"+esc(r.unitName)+"</td><td>"+esc(r.memo)+"</td><td>"+esc(r.createdAt)+"</td><td><button class='delete-row' data-index='"+i+"' type='button'>삭제</button></td></tr>";
+    html+="<tr><td>"+(i+1)+"</td><td>"+esc(r.ring)+"</td><td>"+esc(r.office)+"</td><td>"+esc(r.rack)+"</td><td>"+esc(r.shelf)+"</td><td>"+esc(r.slot)+"</td><td>"+esc(r.wavelength)+"</td><td>"+esc(r.slotNumber)+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName)+"</td><td>"+esc(r.memo)+"</td><td>"+esc(r.createdAt)+"</td><td><button class='delete-row' data-index='"+i+"' type='button'>삭제</button></td></tr>";
   });
   body.innerHTML=html;
   body.querySelectorAll(".delete-row").forEach(function(btn){
@@ -233,20 +246,23 @@ function applyCode(value,format,manual){
 }
 
 function cancelSlot(){
-  state.slot="";$("slotCode").value="";$("wavelength").value="";$("slotNumber").value="";$("unitName").value="";$("memo").value="";
+  state.slot="";$("slotCode").value="";$("wavelength").value="";$("slotNumber").value="";$("unitCategory").value="";populateUnitNames();$("memo").value="";
   hide("slotSection");setStage("slot");
 }
 function saveSlot(){
   var slotNo=clean($("slotNumber").value);
+  var unitCategory=clean($("unitCategory").value),unitName=clean($("unitName").value);
   if(!state.slot){toast("Slot 코드를 먼저 등록하세요.");return;}
   if(!/^[0-9A-F][0-9]{2}$/.test(slotNo)){toast("Slot Number는 첫 글자 0~9 또는 A~F, 뒤 두 자리는 숫자여야 합니다.");return;}
+  if(!unitCategory){toast("장비 카테고리를 선택하세요.");return;}
+  if(!unitName){toast("유니트명을 선택하세요.");return;}
   state.records.push({
     id:String(Date.now())+"-"+Math.random().toString(16).slice(2),
     ring:state.ring,office:state.office,
     rack:state.skipRack?"생략":state.rack,
     shelf:state.skipShelf?"생략":state.shelf,
     slot:state.slot,wavelength:clean($("wavelength").value),
-    slotNumber:slotNo,unitName:clean($("unitName").value),
+    slotNumber:slotNo,unitCategory:unitCategory,unitName:unitName,
     memo:clean($("memo").value),createdAt:new Date().toLocaleString()
   });
   cancelSlot();saveLocal();renderRecords();toast("저장했습니다. 다음 Slot을 스캔하세요.");
@@ -304,9 +320,10 @@ function resetCurrentInput(){
   stopScanner(true).then(function(){
     state.ring="";state.office="";state.rack="";state.shelf="";state.slot="";
     state.skipRack=false;state.skipShelf=false;state.stage="rack";state.started=false;
-    ["ringName","officeName","manualCode","slotCode","wavelength","slotNumber","unitName","memo"].forEach(function(id){
+    ["ringName","officeName","manualCode","slotCode","wavelength","slotNumber","unitCategory","memo"].forEach(function(id){
       if($(id))$(id).value="";
     });
+    populateUnitNames();
     $("skipRack").checked=false;$("skipShelf").checked=false;
     hide("workflowSection");hide("slotSection");
     show("siteSection");show("startWorkBtn");hide("editWorkBtn");
@@ -462,10 +479,10 @@ function download(name,content,type){
 }
 function exportCSV(){
   if(!state.records.length){toast("내보낼 데이터가 없습니다.");return;}
-  var heads=["No","링명","국사명","Rack","Shelf","Slot","Wavelength","Slot Number","유니트명","비고","등록시각"];
+  var heads=["No","링명","국사명","Rack","Shelf","Slot","Wavelength","Slot Number","장비 카테고리","유니트명","비고","등록시각"];
   var lines=[heads.map(csvEscape).join(",")];
   state.records.forEach(function(r,i){
-    lines.push([i+1,r.ring,r.office,r.rack,r.shelf,r.slot,r.wavelength,r.slotNumber,r.unitName,r.memo,r.createdAt].map(csvEscape).join(","));
+    lines.push([i+1,r.ring,r.office,r.rack,r.shelf,r.slot,r.wavelength,r.slotNumber,r.unitCategory||"",r.unitName,r.memo,r.createdAt].map(csvEscape).join(","));
   });
   download("rack_shelf_slot_"+new Date().toISOString().slice(0,10)+".csv","\ufeff"+lines.join("\r\n"),"text/csv;charset=utf-8");
 }
@@ -524,6 +541,7 @@ $("manualBtn").addEventListener("click",function(){
 $("manualCode").addEventListener("input",function(){
   this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,64);
 });
+$("unitCategory").addEventListener("change",function(){populateUnitNames();});
 $("slotNumber").addEventListener("input",function(){
   this.value=this.value.toUpperCase().replace(/[^0-9A-F]/g,"").slice(0,3);
   if(this.value.length>1){
@@ -545,6 +563,6 @@ if("serviceWorker" in navigator){window.addEventListener("load",function(){navig
 document.addEventListener("visibilitychange",function(){if(document.hidden)stopScanner(true);});
 window.addEventListener("pagehide",function(){stopScanner(true);});
 
-restoreLocal();environmentCheck();updateUI();
+populateUnitNames();restoreLocal();environmentCheck();updateUI();
 ensureScannerLibrary().catch(function(){});
 })();
