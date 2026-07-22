@@ -1,14 +1,22 @@
 {
-  "js_syntax": true,
-  "app_version_v9": true,
-  "service_worker_cache_v9": true,
-  "zxing_init_awaited": true,
-  "all_formats_auto": true,
-  "native_barcode_detector": true,
-  "multi_regions": true,
-  "multi_preprocessing": true,
-  "zxing_accuracy_options": true,
-  "self_test_page": true,
-  "fixtures_present": true,
-  "qr_fixture_verified_opencv": true
+  "version": "12.0.0",
+  "checks": {
+    "app_version_v12": true,
+    "service_worker_v12": true,
+    "profile_control": true,
+    "two_stage_decode": true,
+    "native_first": true,
+    "fast_formats_limited": true,
+    "precise_fallback": true,
+    "decode_lock": true,
+    "adaptive_interval": true,
+    "dynamic_confirmation": true,
+    "frame_change_skip": true,
+    "performance_display": true,
+    "all_dom_refs_exist": true,
+    "unit_dropdown_preserved": true,
+    "csv_preserved": true
+  },
+  "missing_dom_ids": [],
+  "passed": true
 }

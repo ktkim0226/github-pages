@@ -1,6 +1,6 @@
 {
-  "name": "링/국사 Rack Shelf Slot 스캐너",
-  "short_name": "설비 스캐너",
+  "name": "설비 바코드·QR 스캐너 v11",
+  "short_name": "설비스캐너 v11",
   "description": "링명과 국사명을 기준으로 Rack, Shelf, Slot 바코드 및 QR 코드를 순차 등록하는 모바일 웹앱",
   "start_url": "./",
   "scope": "./",
@@ -14,5 +14,6 @@
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "version": "11.0.0"
 }

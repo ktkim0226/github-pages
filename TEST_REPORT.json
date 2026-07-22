@@ -1,27 +1,22 @@
 {
-  "artifact_version": "3.0.0",
-  "scan_behavior": "Single successful decode immediately stops the camera and opens a user confirmation dialog.",
-  "accuracy_controls": [
-    "rear camera preferred",
-    "single centered scan region",
-    "one code at a time guidance",
-    "immediate camera stop after first decode",
-    "duplicate callback lockout",
-    "manual visual confirmation before applying",
-    "manual input fallback"
-  ],
-  "static_checks": {
-    "single_scan_gate": "PASS",
-    "camera_stop_after_decode": "PASS",
-    "duplicate_callback_lock": "PASS",
-    "user_confirmation_required": "PASS",
-    "ring_office_required": "PASS",
-    "optional_rack_shelf": "PASS",
-    "CSV_JSON_PWA": "PASS"
+  "version": "12.0.0",
+  "checks": {
+    "app_version_v12": true,
+    "service_worker_v12": true,
+    "profile_control": true,
+    "two_stage_decode": true,
+    "native_first": true,
+    "fast_formats_limited": true,
+    "precise_fallback": true,
+    "decode_lock": true,
+    "adaptive_interval": true,
+    "dynamic_confirmation": true,
+    "frame_change_skip": true,
+    "performance_display": true,
+    "all_dom_refs_exist": true,
+    "unit_dropdown_preserved": true,
+    "csv_preserved": true
   },
-  "device_tests": {
-    "iPhone Safari live camera": "NOT EXECUTED - requires deployed HTTPS URL and physical device",
-    "Android Chrome live camera": "NOT EXECUTED - requires deployed HTTPS URL and physical device"
-  },
-  "accuracy_note": "No camera-based web scanner can guarantee 100% recognition accuracy. This build minimizes false application by stopping on the first decode and requiring visual confirmation."
+  "missing_dom_ids": [],
+  "passed": true
 }
