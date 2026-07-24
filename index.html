@@ -7,16 +7,21 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="설비 스캐너">
-  <title>링/국사 Rack·Shelf·Slot 스캐너 v12</title>
+  <title>설비 작업 스캐너 v15</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=15.0.0">
 </head>
 <body>
+<div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
+  <div><strong>새 버전이 준비되었습니다.</strong><span id="updateMessage">최신 기능을 사용하려면 업데이트하세요.</span></div>
+  <button id="applyUpdateBtn" type="button">지금 업데이트</button>
+  <button id="dismissUpdateBtn" class="update-dismiss" type="button" aria-label="업데이트 안내 닫기">×</button>
+</div>
 <header>
   <div>
     <h1>설비 바코드·QR 스캐너</h1>
-    <p>링명·국사명 → 선택적 Rack/Shelf → Slot 순차 등록</p>
+    <p>신규 증설 또는 재배치 작업을 선택하여 등록</p>
   </div>
 </header>
 
@@ -26,10 +31,20 @@
     <p class="hint">GitHub Pages HTTPS 주소를 iPhone Safari 또는 Android Chrome에서 직접 열어 주세요.</p>
   </section>
 
-  <section class="card section-basic" id="siteSection">
+
+  <section class="card mode-gate" id="modeGateSection">
+    <div class="section-title"><span class="step">1</span><h2>작업 유형 선택</h2></div>
+    <div class="mode-choice-grid">
+      <button id="newInstallModeBtn" class="mode-choice" type="button"><strong>신규 증설</strong><small>기존 Rack·Shelf·Slot 순차 스캔 방식으로 작업합니다.</small></button>
+      <button id="relocationModeBtn" class="mode-choice" type="button"><strong>재배치</strong><small>재배치 전·후 위치정보와 유니트바코드를 등록합니다.</small></button>
+    </div>
+  </section>
+
+  <section class="card section-basic hidden" id="siteSection">
+    <div class="mode-switch-row"><button id="newChangeModeBtn" class="plain-button" type="button">작업 유형 다시 선택</button></div>
     <div class="section-title">
-      <span class="step">1</span>
-      <h2>작업 기본정보</h2>
+      <span class="step">2</span>
+      <h2>신규 증설 기본정보</h2>
     </div>
 
     <label for="ringName">링명 <em>필수</em></label>
@@ -55,7 +70,7 @@
 
   <section class="card section-scan hidden" id="workflowSection">
     <div class="section-title">
-      <span class="step">2</span>
+      <span class="step">3</span>
       <h2>순차 스캔</h2>
     </div>
 
@@ -84,7 +99,7 @@
 
   <section class="card section-detail hidden" id="slotSection">
     <div class="section-title">
-      <span class="step">3</span>
+      <span class="step">4</span>
       <h2>Slot 상세정보</h2>
     </div>
 
@@ -116,6 +131,38 @@
     <button id="cancelSlotBtn" class="secondary" type="button">Slot 입력 취소</button>
   </section>
 
+
+  <section class="card hidden" id="relocationSection">
+    <div class="mode-switch-row"><button id="changeModeBtn" class="plain-button" type="button">작업 유형 다시 선택</button></div>
+    <div class="section-title"><span class="step">2</span><h2>재배치 정보 입력</h2></div>
+    <p class="optional-note">모든 항목은 선택 입력입니다. 유니트바코드만 스캔해 저장할 수도 있습니다.</p>
+    <div class="relocation-grid">
+      <div class="relocation-group">
+        <h3>재배치 전</h3>
+        <label for="beforeOffice">국사</label><input id="beforeOffice" autocomplete="off" placeholder="예: 관악국사">
+        <label for="beforeRing">링명</label><input id="beforeRing" autocomplete="off" placeholder="예: 서울-중부 Ring">
+        <label for="beforeSlot">슬롯</label><input id="beforeSlot" autocomplete="off" placeholder="예: F03">
+        <label for="beforeWavelength">파장</label><input id="beforeWavelength" autocomplete="off" placeholder="예: 193.10 THz / 1552.52 nm">
+      </div>
+      <div class="relocation-group">
+        <h3>재배치 후</h3>
+        <label for="afterOffice">국사</label><input id="afterOffice" autocomplete="off" placeholder="예: 구로국사">
+        <label for="afterRing">링명</label><input id="afterRing" autocomplete="off" placeholder="예: 서울-서부 Ring">
+        <label for="afterSlot">슬롯</label><input id="afterSlot" autocomplete="off" placeholder="예: A15">
+        <label for="afterWavelength">파장</label><input id="afterWavelength" autocomplete="off" placeholder="예: 193.20 THz / 1551.72 nm">
+      </div>
+    </div>
+    <label for="relocationUnitCategory">장비 카테고리</label>
+    <select id="relocationUnitCategory"><option value="">카테고리를 선택하세요</option><option value="OSN6800/9800 UPS">OSN6800/9800 UPS</option><option value="OSN9800 M12">OSN9800 M12</option></select>
+    <label for="relocationUnitName">유니트명</label>
+    <select id="relocationUnitName" disabled><option value="">먼저 장비 카테고리를 선택하세요</option></select>
+    <label for="unitBarcode">유니트바코드</label>
+    <div class="unit-barcode-row"><input id="unitBarcode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="스캔 또는 수동 입력"><button id="scanUnitBarcodeBtn" class="primary compact" type="button">카메라 스캔</button></div>
+    <label for="relocationMemo">비고</label><textarea id="relocationMemo" rows="3" placeholder="선택 입력"></textarea>
+    <button id="saveRelocationBtn" class="success" type="button">재배치 정보 저장</button>
+    <button id="resetRelocationBtn" class="danger-outline" type="button">입력값 초기화</button>
+  </section>
+
   <section class="card section-data hidden" id="dataSection">
     <div class="section-title">
       <span class="step">4</span>
@@ -130,9 +177,8 @@
       <table>
         <thead>
           <tr>
-            <th>No.</th><th>링명</th><th>국사명</th><th>Rack</th><th>Shelf</th>
-            <th>Slot</th><th>Wavelength</th><th>Slot No.</th><th>장비 카테고리</th><th>유니트명</th>
-            <th>비고</th><th>등록시각</th><th>삭제</th>
+            <th>No.</th><th>작업유형</th><th>재배치 전/신규 위치</th><th>Rack</th><th>Shelf</th><th>Slot</th><th>파장</th>
+            <th>장비 카테고리</th><th>유니트명</th><th>유니트바코드</th><th>재배치 후 위치</th><th>비고</th><th>등록시각</th><th>삭제</th>
           </tr>
         </thead>
         <tbody id="recordBody"></tbody>
@@ -234,6 +280,6 @@
 <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.2/dist/iife/reader/index.js"
   crossorigin="anonymous"
   onerror="this.onerror=null;this.src='https://unpkg.com/zxing-wasm@3.1.2/dist/iife/reader/index.js';"></script>
-<script src="./app.js"></script>
+<script src="./app.js?v=15.0.0"></script>
 </body>
 </html>

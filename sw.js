@@ -1,26 +1,32 @@
-
-const CACHE_NAME="rack-slot-scanner-v13";
-const CORE=["./","./index.html","./styles.css","./app.js","./manifest.webmanifest","./icon.svg"];
+const CACHE_NAME="rack-slot-scanner-v15";
+const CORE=["./","./index.html","./styles.css?v=15.0.0","./app.js?v=15.0.0","./manifest.webmanifest","./icon.svg"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE)));
-  self.skipWaiting();
+});
+self.addEventListener("message",event=>{
+  if(event.data&&event.data.type==="SKIP_WAITING")self.skipWaiting();
 });
 self.addEventListener("activate",event=>{
-  event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k)))));
-  self.clients.claim();
+  event.waitUntil(Promise.all([
+    caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k)))),
+    self.clients.claim()
+  ]));
 });
 self.addEventListener("fetch",event=>{
   if(event.request.method!=="GET")return;
-  event.respondWith(
-    caches.match(event.request).then(cached=>{
-      const network=fetch(event.request).then(response=>{
-        if(response&&response.ok){
-          const copy=response.clone();
-          caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy));
-        }
-        return response;
-      }).catch(()=>cached||caches.match("./index.html"));
-      return cached||network;
-    })
-  );
+  const url=new URL(event.request.url);
+  if(event.request.mode==="navigate"){
+    event.respondWith(fetch(event.request,{cache:"no-store"}).then(response=>{
+      if(response&&response.ok)caches.open(CACHE_NAME).then(cache=>cache.put("./index.html",response.clone()));
+      return response;
+    }).catch(()=>caches.match("./index.html")));
+    return;
+  }
+  if(url.pathname.endsWith("/version.json")||url.pathname.endsWith("/sw.js")){
+    event.respondWith(fetch(event.request,{cache:"no-store"}));return;
+  }
+  event.respondWith(fetch(event.request).then(response=>{
+    if(response&&response.ok)caches.open(CACHE_NAME).then(cache=>cache.put(event.request,response.clone()));
+    return response;
+  }).catch(()=>caches.match(event.request)));
 });

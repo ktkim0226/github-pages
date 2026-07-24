@@ -2,25 +2,28 @@
 (function(){
 "use strict";
 
-var APP_VERSION="13.0.0";
+var APP_VERSION="15.0.0";
+var pendingServiceWorker=null;
+var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
-var CONFIG_KEY="rss_config_v3";
+var CONFIG_KEY="rss_config_v4";
 
 var UNIT_OPTIONS={
   "OSN6800/9800 UPS":["12DCP","13DCP","12LSX","14LSX","15LSC","17LSC","19LSC","15LTX","17LTX","12LOG","11LOA","12TMX"],
   "OSN9800 M12":["G2DCP","G1M504","G2M504","G1M520","G1M210","G3MA08G1","G3MA08GU"]
 };
-function populateUnitNames(selected){
-  var category=clean($("unitCategory").value),unit=$("unitName"),items=UNIT_OPTIONS[category]||[];
+function fillUnitSelect(categoryId,unitId,selected){
+  var category=clean($(categoryId).value),unit=$(unitId),items=UNIT_OPTIONS[category]||[];
   unit.innerHTML="";
   var first=document.createElement("option");first.value="";first.textContent=category?"유니트명을 선택하세요":"먼저 장비 카테고리를 선택하세요";unit.appendChild(first);
   items.forEach(function(name){var opt=document.createElement("option");opt.value=name;opt.textContent=name;unit.appendChild(opt);});
-  unit.disabled=!category;
-  if(selected&&items.indexOf(selected)>=0)unit.value=selected;
+  unit.disabled=!category;if(selected&&items.indexOf(selected)>=0)unit.value=selected;
 }
+function populateUnitNames(selected){fillUnitSelect("unitCategory","unitName",selected);}
+function populateRelocationUnitNames(selected){fillUnitSelect("relocationUnitCategory","relocationUnitName",selected);}
 
 var state={
-  started:false, ring:"", office:"", skipRack:false, skipShelf:false,
+  workMode:"", started:false, ring:"", office:"", skipRack:false, skipShelf:false,
   rack:"", shelf:"", slot:"", stage:"rack", records:[],
   scanner:null, stream:null, scanning:false, scanMode:"auto", torchOn:false, cameraCapabilities:null, editingStage:null,
   decodeBusy:false, animationId:0, frameIndex:0, lastDecodeAt:0,
@@ -202,7 +205,7 @@ function determineStage(){
   if(!state.skipShelf && !state.shelf)return "shelf";
   return "slot";
 }
-function stageLabel(s){return s==="rack"?"Rack":s==="shelf"?"Shelf":"Slot";}
+function stageLabel(s){return s==="rack"?"Rack":s==="shelf"?"Shelf":s==="unitBarcode"?"유니트바코드":"Slot";}
 function setStage(s){
   state.stage=s;state.scanLocked=false;
   updateUI();
@@ -229,28 +232,36 @@ function restoreLocal(){
 
 function updateUI(){
   text("ringView",state.ring||"-");text("officeView",state.office||"-");
-  text("rackView",state.skipRack?"생략":(state.rack||"미등록"));
-  text("shelfView",state.skipShelf?"생략":(state.shelf||"미등록"));
-  text("slotView",state.slot||"미등록");
-  text("stageView",stageLabel(state.stage));
-  text("stageNotice",stageLabel(state.stage)+" 바코드 또는 QR 코드를 스캔하세요.");
-      if(state.started){show("workflowSection");show("dataSection");show("editWorkBtn");hide("startWorkBtn");}
-  else{hide("workflowSection");hide("slotSection");hide("editWorkBtn");show("startWorkBtn");}
+  text("rackView",state.skipRack?"생략":(state.rack||"미등록"));text("shelfView",state.skipShelf?"생략":(state.shelf||"미등록"));
+  text("slotView",state.slot||"미등록");text("stageView",stageLabel(state.stage));text("stageNotice",stageLabel(state.stage)+" 바코드 또는 QR 코드를 스캔하세요.");
+  if(state.workMode==="new"){show("siteSection");hide("relocationSection");if(state.started){show("workflowSection");show("dataSection");show("editWorkBtn");hide("startWorkBtn");}else{hide("workflowSection");hide("slotSection");hide("editWorkBtn");show("startWorkBtn");}}
+  else if(state.workMode==="relocation"){hide("siteSection");hide("workflowSection");hide("slotSection");show("relocationSection");show("dataSection");}
+  else{hide("siteSection");hide("workflowSection");hide("slotSection");hide("relocationSection");hide("dataSection");}
   renderRecords();
 }
+function locationText(office,ring,slot,wavelength){return [office,ring,slot,wavelength].filter(Boolean).join(" / ");}
 function renderRecords(){
-  text("recordCount",String(state.records.length));
-  var body=$("recordBody"),html="";
+  text("recordCount",String(state.records.length));var body=$("recordBody"),html="";
   state.records.forEach(function(r,i){
-    html+="<tr><td>"+(i+1)+"</td><td>"+esc(r.ring)+"</td><td>"+esc(r.office)+"</td><td>"+esc(r.rack)+"</td><td>"+esc(r.shelf)+"</td><td>"+esc(r.slot)+"</td><td>"+esc(r.wavelength)+"</td><td>"+esc(r.slotNumber)+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName)+"</td><td>"+esc(r.memo)+"</td><td>"+esc(r.createdAt)+"</td><td><button class='delete-row' data-index='"+i+"' type='button'>삭제</button></td></tr>";
+    var type=r.workType||"신규 증설";var before=type==="재배치"?locationText(r.beforeOffice,r.beforeRing,r.beforeSlot,r.beforeWavelength):locationText(r.office,r.ring,r.slotNumber||r.slot,r.wavelength);
+    var after=type==="재배치"?locationText(r.afterOffice,r.afterRing,r.afterSlot,r.afterWavelength):"";
+    html+="<tr><td>"+(i+1)+"</td><td><span class='record-type-badge'>"+esc(type)+"</span></td><td>"+esc(before)+"</td><td>"+esc(r.rack||"")+"</td><td>"+esc(r.shelf||"")+"</td><td>"+esc(type==="재배치"?(r.beforeSlot||""):(r.slot||""))+"</td><td>"+esc(type==="재배치"?(r.beforeWavelength||""):(r.wavelength||""))+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||"")+"</td><td>"+esc(after)+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+i+"' type='button'>삭제</button></td></tr>";
   });
-  body.innerHTML=html;
-  body.querySelectorAll(".delete-row").forEach(function(btn){
-    btn.addEventListener("click",function(){
-      state.records.splice(Number(btn.dataset.index),1);saveLocal();renderRecords();toast("삭제했습니다.");
-    });
-  });
+  body.innerHTML=html;body.querySelectorAll(".delete-row").forEach(function(btn){btn.addEventListener("click",function(){state.records.splice(Number(btn.dataset.index),1);saveLocal();renderRecords();toast("삭제했습니다.");});});
 }
+
+function selectWorkMode(mode){
+  stopScanner(true);state.workMode=mode;state.started=false;state.stage=mode==="relocation"?"unitBarcode":"rack";
+  document.querySelectorAll(".mode-choice").forEach(function(b){b.classList.toggle("active",(mode==="new"&&b.id==="newInstallModeBtn")||(mode==="relocation"&&b.id==="relocationModeBtn"));});
+  hide("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});
+}
+function changeWorkMode(){stopScanner(true);state.workMode="";state.started=false;show("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});}
+function clearRelocationForm(){["beforeOffice","beforeRing","beforeSlot","beforeWavelength","afterOffice","afterRing","afterSlot","afterWavelength","unitBarcode","relocationMemo","relocationUnitCategory"].forEach(function(id){$(id).value="";});populateRelocationUnitNames();}
+function saveRelocation(){
+  state.records.push({id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"재배치",beforeOffice:clean($("beforeOffice").value),beforeRing:clean($("beforeRing").value),beforeSlot:clean($("beforeSlot").value),beforeWavelength:clean($("beforeWavelength").value),unitCategory:clean($("relocationUnitCategory").value),unitName:clean($("relocationUnitName").value),unitBarcode:clean($("unitBarcode").value),afterOffice:clean($("afterOffice").value),afterRing:clean($("afterRing").value),afterSlot:clean($("afterSlot").value),afterWavelength:clean($("afterWavelength").value),memo:clean($("relocationMemo").value),createdAt:new Date().toLocaleString(),ring:"",office:"",rack:"",shelf:"",slot:"",wavelength:"",slotNumber:""});
+  clearRelocationForm();saveLocal();renderRecords();toast("재배치 정보를 저장했습니다.");
+}
+function startUnitBarcodeScan(){state.stage="unitBarcode";startScanner();}
 
 function startWork(){
   var ring=clean($("ringName").value),office=clean($("officeName").value);
@@ -271,6 +282,10 @@ function applyCode(value,format,manual){
   if(!value){toast("빈 값은 반영할 수 없습니다.");return;}
 
   var appliedStage=state.stage;
+  if(state.workMode==="relocation"||appliedStage==="unitBarcode"){
+    $("unitBarcode").value=value;
+    vibrate();toast("유니트바코드가 반영되었습니다.");return;
+  }
   if(appliedStage==="rack"){
     state.rack=value;
     state.shelf=state.skipShelf?"":state.shelf;
@@ -305,12 +320,12 @@ function saveSlot(){
   if(!unitCategory){toast("장비 카테고리를 선택하세요.");return;}
   if(!unitName){toast("유니트명을 선택하세요.");return;}
   state.records.push({
-    id:String(Date.now())+"-"+Math.random().toString(16).slice(2),
+    id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"신규 증설",
     ring:state.ring,office:state.office,
     rack:state.skipRack?"생략":state.rack,
     shelf:state.skipShelf?"생략":state.shelf,
     slot:state.slot,wavelength:clean($("wavelength").value),
-    slotNumber:slotNo,unitCategory:unitCategory,unitName:unitName,
+    slotNumber:slotNo,unitCategory:unitCategory,unitName:unitName,unitBarcode:"",
     memo:clean($("memo").value),createdAt:new Date().toLocaleString()
   });
   cancelSlot();saveLocal();renderRecords();toast("저장했습니다. 다음 Slot을 스캔하세요.");
@@ -564,17 +579,23 @@ function download(name,content,type){
 }
 function exportCSV(){
   if(!state.records.length){toast("내보낼 데이터가 없습니다.");return;}
-  var heads=["No","링명","국사명","Rack","Shelf","Slot","Wavelength","Slot Number","장비 카테고리","유니트명","비고","등록시각"];
-  var lines=[heads.map(csvEscape).join(",")];
-  state.records.forEach(function(r,i){
-    lines.push([i+1,r.ring,r.office,r.rack,r.shelf,r.slot,r.wavelength,r.slotNumber,r.unitCategory||"",r.unitName,r.memo,r.createdAt].map(csvEscape).join(","));
-  });
-  download("rack_shelf_slot_"+new Date().toISOString().slice(0,10)+".csv","\ufeff"+lines.join("\r\n"),"text/csv;charset=utf-8");
+  var heads=["No","작업유형","신규 링명","신규 국사명","Rack","Shelf","Slot 바코드","Slot Number","신규 파장","재배치 전 국사","재배치 전 링명","재배치 전 슬롯","재배치 전 파장","장비 카테고리","유니트명","유니트바코드","재배치 후 국사","재배치 후 링명","재배치 후 슬롯","재배치 후 파장","비고","등록시각"];
+  var lines=[heads.map(csvEscape).join(",")];state.records.forEach(function(r,i){lines.push([i+1,r.workType||"신규 증설",r.ring||"",r.office||"",r.rack||"",r.shelf||"",r.slot||"",r.slotNumber||"",r.wavelength||"",r.beforeOffice||"",r.beforeRing||"",r.beforeSlot||"",r.beforeWavelength||"",r.unitCategory||"",r.unitName||"",r.unitBarcode||"",r.afterOffice||"",r.afterRing||"",r.afterSlot||"",r.afterWavelength||"",r.memo||"",r.createdAt||""].map(csvEscape).join(","));});
+  download("equipment_work_"+new Date().toISOString().slice(0,10)+".csv","\ufeff"+lines.join("\r\n"),"text/csv;charset=utf-8");
 }
 
 
 
 
+$("newInstallModeBtn").addEventListener("click",function(){selectWorkMode("new");});
+$("relocationModeBtn").addEventListener("click",function(){selectWorkMode("relocation");});
+$("changeModeBtn").addEventListener("click",changeWorkMode);
+$("newChangeModeBtn").addEventListener("click",changeWorkMode);
+$("scanUnitBarcodeBtn").addEventListener("click",startUnitBarcodeScan);
+$("saveRelocationBtn").addEventListener("click",saveRelocation);
+$("resetRelocationBtn").addEventListener("click",function(){clearRelocationForm();toast("재배치 입력값을 초기화했습니다.");});
+$("relocationUnitCategory").addEventListener("change",function(){populateRelocationUnitNames();});
+$("unitBarcode").addEventListener("input",function(){this.value=this.value.toUpperCase().replace(/[\u0000-\u001F\u007F]/g,"").slice(0,128);});
 $("startWorkBtn").addEventListener("click",startWork);
 $("editWorkBtn").addEventListener("click",editWork);
 $("scanBtn").addEventListener("click",startScanner);
@@ -651,10 +672,68 @@ function environmentCheck(){
   else if(!okSecure){text("envStatus","HTTPS가 아니므로 카메라가 차단될 수 있습니다.");$("envStatus").className="status bad";}
   else{text("envStatus","현재 브라우저에서 카메라 API를 사용할 수 없습니다.");$("envStatus").className="status bad";}
 }
-if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(console.error);});}
+function hasUnsavedWork(){
+  if(state.scanning||state.slot||state.rack||state.shelf)return true;
+  var ids=state.workMode==="relocation"?
+    ["beforeOffice","beforeRing","beforeSlot","beforeWavelength","relocationUnitCategory","relocationUnitName","unitBarcode","afterOffice","afterRing","afterSlot","afterWavelength","relocationMemo"]:
+    ["wavelength","slotNumber","unitCategory","unitName","memo","manualCode"];
+  return ids.some(function(id){var el=$(id);return el&&clean(el.value);});
+}
+function showUpdateAvailable(worker,remoteVersion){
+  pendingServiceWorker=worker||pendingServiceWorker;
+  var dirty=hasUnsavedWork();
+  text("updateMessage",dirty?"입력 중인 내용이 있습니다. 저장한 뒤 업데이트하세요.":"버전 "+(remoteVersion||"최신")+"을 적용할 수 있습니다.");
+  $("applyUpdateBtn").textContent=dirty?"저장 후 업데이트":"지금 업데이트";
+  show("updateBanner");
+}
+function activateWaitingWorker(force){
+  if(hasUnsavedWork()&&!force){showUpdateAvailable(pendingServiceWorker);toast("입력 내용을 먼저 저장하거나 초기화해 주세요.");return;}
+  if(pendingServiceWorker){pendingServiceWorker.postMessage({type:"SKIP_WAITING"});return;}
+  location.reload();
+}
+async function checkAppVersion(){
+  if(!navigator.onLine)return;
+  try{
+    var response=await fetch("./version.json?t="+Date.now(),{cache:"no-store"});
+    if(!response.ok)return;
+    var remote=await response.json();
+    if(remote.version&&remote.version!==APP_VERSION){
+      var reg=await navigator.serviceWorker.getRegistration();
+      if(reg){
+        await reg.update();
+        if(reg.waiting)showUpdateAvailable(reg.waiting,remote.version);
+        else if(reg.installing){reg.installing.addEventListener("statechange",function(){if(this.state==="installed")showUpdateAvailable(this,remote.version);});}
+        else showUpdateAvailable(null,remote.version);
+      }else showUpdateAvailable(null,remote.version);
+    }
+  }catch(e){console.log("업데이트 확인 생략:",e&&e.message||e);}
+}
+function registerServiceWorker(){
+  if(!("serviceWorker" in navigator))return;
+  navigator.serviceWorker.addEventListener("controllerchange",function(){
+    if(updateReloading)return;updateReloading=true;location.reload();
+  });
+  navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"}).then(function(reg){
+    if(reg.waiting)showUpdateAvailable(reg.waiting);
+    reg.addEventListener("updatefound",function(){
+      var worker=reg.installing;if(!worker)return;
+      worker.addEventListener("statechange",function(){
+        if(worker.state==="installed"&&navigator.serviceWorker.controller)showUpdateAvailable(worker);
+      });
+    });
+    reg.update().catch(function(){});
+    checkAppVersion();
+  }).catch(console.error);
+}
+$("applyUpdateBtn").addEventListener("click",function(){activateWaitingWorker(false);});
+$("dismissUpdateBtn").addEventListener("click",function(){hide("updateBanner");});
+window.addEventListener("load",registerServiceWorker);
+window.addEventListener("pageshow",function(){checkAppVersion();});
+document.addEventListener("visibilitychange",function(){if(!document.hidden)checkAppVersion();});
+setInterval(checkAppVersion,5*60*1000);
 document.addEventListener("visibilitychange",function(){if(document.hidden)stopScanner(true);});
 window.addEventListener("pagehide",function(){stopScanner(true);});
 
-populateUnitNames();restoreLocal();environmentCheck();updateUI();
+populateUnitNames();populateRelocationUnitNames();restoreLocal();state.workMode="";show("modeGateSection");environmentCheck();updateUI();
 ensureScannerLibrary().catch(function(){});
 })();

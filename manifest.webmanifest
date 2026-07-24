@@ -1,19 +1,12 @@
 {
-  "name": "설비 바코드·QR 스캐너 v11",
-  "short_name": "설비스캐너 v11",
-  "description": "링명과 국사명을 기준으로 Rack, Shelf, Slot 바코드 및 QR 코드를 순차 등록하는 모바일 웹앱",
+  "name": "설비 작업 스캐너 v14",
+  "short_name": "설비스캐너 v14",
+  "description": "신규 증설과 재배치 작업의 설비 정보 및 유니트바코드를 등록하는 모바일 웹앱",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#eef2f7",
   "theme_color": "#0f172a",
-  "icons": [
-    {
-      "src": "./icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ],
-  "version": "11.0.0"
+  "icons": [{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}],
+  "version": "14.0.0"
 }
