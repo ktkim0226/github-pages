@@ -1,5 +1,5 @@
-const CACHE_NAME="rack-slot-scanner-v15";
-const CORE=["./","./index.html","./styles.css?v=15.0.0","./app.js?v=15.0.0","./manifest.webmanifest","./icon.svg"];
+const CACHE_NAME="rack-slot-scanner-v16";
+const CORE=["./","./index.html","./styles.css?v=16.0.0","./app.js?v=16.0.0","./manifest.webmanifest","./icon.svg"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE)));
 });

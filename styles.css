@@ -142,3 +142,16 @@ html.edit-open,body.edit-open{overflow:hidden!important;height:100%}
 .update-banner{position:fixed;z-index:2000;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:12px 14px;border-radius:14px;background:#0f172a;color:#fff;box-shadow:0 14px 40px rgba(15,23,42,.35)}
 .update-banner div{display:grid;gap:2px}.update-banner strong{font-size:14px}.update-banner span{font-size:12px;color:#cbd5e1}.update-banner button{min-height:38px;padding:7px 12px;background:#22c55e;color:#052e16;white-space:nowrap}.update-banner .update-dismiss{width:36px;min-height:36px;padding:0;border-radius:50%;background:#334155;color:#fff;font-size:20px}
 @media(max-width:560px){.update-banner{grid-template-columns:1fr auto}.update-banner div{grid-column:1/-1;padding-right:28px}.update-banner .update-dismiss{position:absolute;right:8px;top:8px}.update-banner #applyUpdateBtn{grid-column:1/-1;width:100%}}
+
+/* v16 relocation distinction and separated records */
+.relocation-group.relocation-before{background:#fff1f2;border-color:#fecdd3;box-shadow:inset 4px 0 0 #fb7185}
+.relocation-group.relocation-before h3{color:#be123c}
+.relocation-group.relocation-after{background:#eff6ff;border-color:#bfdbfe;box-shadow:inset 4px 0 0 #60a5fa}
+.relocation-group.relocation-after h3{color:#1d4ed8}
+.record-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;padding:5px;background:#e2e8f0;border-radius:13px}
+.record-tab{min-height:44px;background:transparent;color:#475569;border:0}
+.record-tab.active{background:#fff;color:#0f172a;box-shadow:0 2px 8px rgba(15,23,42,.12)}
+.record-export{width:100%;margin-bottom:10px}.record-panel.hidden{display:none}
+#newRecordsPanel{border-top:3px solid #22c55e;padding-top:10px}
+#relocationRecordsPanel{border-top:3px solid #8b5cf6;padding-top:10px}
+.engine-badge::after{content:' · Turbo Hybrid v16'}

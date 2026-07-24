@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="설비 스캐너">
-  <title>설비 작업 스캐너 v15</title>
+  <title>설비 작업 스캐너 v16</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=15.0.0">
+  <link rel="stylesheet" href="./styles.css?v=16.0.0">
 </head>
 <body>
 <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
@@ -137,14 +137,14 @@
     <div class="section-title"><span class="step">2</span><h2>재배치 정보 입력</h2></div>
     <p class="optional-note">모든 항목은 선택 입력입니다. 유니트바코드만 스캔해 저장할 수도 있습니다.</p>
     <div class="relocation-grid">
-      <div class="relocation-group">
+      <div class="relocation-group relocation-before">
         <h3>재배치 전</h3>
         <label for="beforeOffice">국사</label><input id="beforeOffice" autocomplete="off" placeholder="예: 관악국사">
         <label for="beforeRing">링명</label><input id="beforeRing" autocomplete="off" placeholder="예: 서울-중부 Ring">
         <label for="beforeSlot">슬롯</label><input id="beforeSlot" autocomplete="off" placeholder="예: F03">
         <label for="beforeWavelength">파장</label><input id="beforeWavelength" autocomplete="off" placeholder="예: 193.10 THz / 1552.52 nm">
       </div>
-      <div class="relocation-group">
+      <div class="relocation-group relocation-after">
         <h3>재배치 후</h3>
         <label for="afterOffice">국사</label><input id="afterOffice" autocomplete="off" placeholder="예: 구로국사">
         <label for="afterRing">링명</label><input id="afterRing" autocomplete="off" placeholder="예: 서울-서부 Ring">
@@ -166,23 +166,19 @@
   <section class="card section-data hidden" id="dataSection">
     <div class="section-title">
       <span class="step">4</span>
-      <h2>저장 데이터 <span id="recordCount" class="badge">0</span></h2>
+      <h2>저장 데이터</h2>
     </div>
-
-    <div class="action-grid csv-only">
-      <button id="csvBtn" class="success" type="button">CSV 내보내기</button>
+    <div class="record-tabs" role="tablist">
+      <button id="newRecordsTab" class="record-tab active" type="button">신규 증설 <span id="newRecordCount" class="badge">0</span></button>
+      <button id="relocationRecordsTab" class="record-tab" type="button">재배치 <span id="relocationRecordCount" class="badge">0</span></button>
     </div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>No.</th><th>작업유형</th><th>재배치 전/신규 위치</th><th>Rack</th><th>Shelf</th><th>Slot</th><th>파장</th>
-            <th>장비 카테고리</th><th>유니트명</th><th>유니트바코드</th><th>재배치 후 위치</th><th>비고</th><th>등록시각</th><th>삭제</th>
-          </tr>
-        </thead>
-        <tbody id="recordBody"></tbody>
-      </table>
+    <div id="newRecordsPanel" class="record-panel">
+      <button id="newCsvBtn" class="success record-export" type="button">신규 증설 CSV 내보내기</button>
+      <div class="table-wrap"><table><thead><tr><th>No.</th><th>국사/링명</th><th>Rack</th><th>Shelf</th><th>Slot</th><th>파장</th><th>장비</th><th>유니트명</th><th>비고</th><th>등록시각</th><th>삭제</th></tr></thead><tbody id="newRecordBody"></tbody></table></div>
+    </div>
+    <div id="relocationRecordsPanel" class="record-panel hidden">
+      <button id="relocationCsvBtn" class="success record-export" type="button">재배치 CSV 내보내기</button>
+      <div class="table-wrap"><table><thead><tr><th>No.</th><th>재배치 전</th><th>장비</th><th>유니트명</th><th>유니트바코드</th><th>재배치 후</th><th>비고</th><th>등록시각</th><th>삭제</th></tr></thead><tbody id="relocationRecordBody"></tbody></table></div>
     </div>
   </section>
 </main>
@@ -280,6 +276,6 @@
 <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.2/dist/iife/reader/index.js"
   crossorigin="anonymous"
   onerror="this.onerror=null;this.src='https://unpkg.com/zxing-wasm@3.1.2/dist/iife/reader/index.js';"></script>
-<script src="./app.js?v=15.0.0"></script>
+<script src="./app.js?v=16.0.0"></script>
 </body>
 </html>

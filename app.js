@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="15.0.0";
+var APP_VERSION="16.0.0";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -119,9 +119,9 @@ function preciseFormats(){
 }
 function activeFormats(){return preciseFormats();}
 function profileConfig(){
-  if(state.performanceProfile==="fast")return {interval:75,preciseAfter:950,qualitySkip:false,maxFastWidth:900,confirmWindow:1200};
-  if(state.performanceProfile==="accurate")return {interval:140,preciseAfter:350,qualitySkip:true,maxFastWidth:1200,confirmWindow:2200};
-  return {interval:100,preciseAfter:650,qualitySkip:true,maxFastWidth:1024,confirmWindow:1700};
+  if(state.performanceProfile==="fast")return {interval:60,preciseAfter:700,qualitySkip:false,maxFastWidth:900,confirmWindow:1200};
+  if(state.performanceProfile==="accurate")return {interval:115,preciseAfter:260,qualitySkip:true,maxFastWidth:1200,confirmWindow:2200};
+  return {interval:80,preciseAfter:480,qualitySkip:true,maxFastWidth:1024,confirmWindow:1700};
 }
 
 function nativeFormatsForMode(){
@@ -241,13 +241,18 @@ function updateUI(){
 }
 function locationText(office,ring,slot,wavelength){return [office,ring,slot,wavelength].filter(Boolean).join(" / ");}
 function renderRecords(){
-  text("recordCount",String(state.records.length));var body=$("recordBody"),html="";
-  state.records.forEach(function(r,i){
-    var type=r.workType||"신규 증설";var before=type==="재배치"?locationText(r.beforeOffice,r.beforeRing,r.beforeSlot,r.beforeWavelength):locationText(r.office,r.ring,r.slotNumber||r.slot,r.wavelength);
-    var after=type==="재배치"?locationText(r.afterOffice,r.afterRing,r.afterSlot,r.afterWavelength):"";
-    html+="<tr><td>"+(i+1)+"</td><td><span class='record-type-badge'>"+esc(type)+"</span></td><td>"+esc(before)+"</td><td>"+esc(r.rack||"")+"</td><td>"+esc(r.shelf||"")+"</td><td>"+esc(type==="재배치"?(r.beforeSlot||""):(r.slot||""))+"</td><td>"+esc(type==="재배치"?(r.beforeWavelength||""):(r.wavelength||""))+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||"")+"</td><td>"+esc(after)+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+i+"' type='button'>삭제</button></td></tr>";
+  var newRows=[],relocationRows=[];
+  state.records.forEach(function(r,originalIndex){
+    var type=r.workType||"신규 증설";
+    if(type==="재배치")relocationRows.push({r:r,index:originalIndex});else newRows.push({r:r,index:originalIndex});
   });
-  body.innerHTML=html;body.querySelectorAll(".delete-row").forEach(function(btn){btn.addEventListener("click",function(){state.records.splice(Number(btn.dataset.index),1);saveLocal();renderRecords();toast("삭제했습니다.");});});
+  text("newRecordCount",String(newRows.length));text("relocationRecordCount",String(relocationRows.length));
+  $("newRecordBody").innerHTML=newRows.map(function(item,i){var r=item.r;return "<tr><td>"+(i+1)+"</td><td>"+esc(locationText(r.office,r.ring,"",""))+"</td><td>"+esc(r.rack||"")+"</td><td>"+esc(r.shelf||"")+"</td><td>"+esc(r.slotNumber||r.slot||"")+"</td><td>"+esc(r.wavelength||"")+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></td></tr>";}).join("");
+  $("relocationRecordBody").innerHTML=relocationRows.map(function(item,i){var r=item.r;return "<tr><td>"+(i+1)+"</td><td class='before-cell'>"+esc(locationText(r.beforeOffice,r.beforeRing,r.beforeSlot,r.beforeWavelength))+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||"")+"</td><td class='after-cell'>"+esc(locationText(r.afterOffice,r.afterRing,r.afterSlot,r.afterWavelength))+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></td></tr>";}).join("");
+  document.querySelectorAll(".delete-row").forEach(function(btn){btn.addEventListener("click",function(){state.records.splice(Number(btn.dataset.index),1);saveLocal();renderRecords();toast("삭제했습니다.");});});
+}
+function showRecordPanel(kind){
+  var isNew=kind==="new";$("newRecordsTab").classList.toggle("active",isNew);$("relocationRecordsTab").classList.toggle("active",!isNew);$("newRecordsPanel").classList.toggle("hidden",!isNew);$("relocationRecordsPanel").classList.toggle("hidden",isNew);
 }
 
 function selectWorkMode(mode){
@@ -503,27 +508,32 @@ async function decodeFrame(){
   if(!state.scanning||state.decodeBusy||state.scanLocked)return;
   var video=$("scannerVideo");if(!video.videoWidth||video.readyState<2)return;analyzeFrameQuality(video);if(state.focusPending)return;
   var cfg=profileConfig(),now=performance.now();if(now-state.lastDecodeAt<cfg.interval)return;
-  if(cfg.qualitySkip&&(state.quality.brightness<35||state.quality.sharpness<3.5))return;
-  var sig=frameSignature(video);if(sig!==null&&state.lastFrameSignature!==null&&Math.abs(sig-state.lastFrameSignature)<2&&now-state.lastDecodeAt<260)return;if(sig!==null)state.lastFrameSignature=sig;
+  if(cfg.qualitySkip&&(state.quality.brightness<30||state.quality.sharpness<3))return;
+  var sig=frameSignature(video);if(sig!==null&&state.lastFrameSignature!==null&&Math.abs(sig-state.lastFrameSignature)<2&&now-state.lastDecodeAt<210)return;if(sig!==null)state.lastFrameSignature=sig;
   state.lastDecodeAt=now;state.decodeBusy=true;state.decodeAttempts++;var started=performance.now();
   try{
-    var nativeResult=await decodeWithNative(video);
-    if(nativeResult){state.nativeHit={value:normalizeDecodedValue(nativeResult.text),at:Date.now()};onScan(nativeResult.text,nativeResult);return;}
     var elapsed=now-state.scanStartedAt,precise=elapsed>=cfg.preciseAfter;
-    var frame;
-    if(!precise)frame=renderFastRegion(video);
-    else{
-      var regions=getRegionRects(video),rect=regions[state.regionIndex++%regions.length],variant=state.variantIndex++%4;
-      frame=renderRegion(video,rect,variant);
+    if(!precise){
+      var fastFrame=renderFastRegion(video);
+      setScannerStatus(stageLabel(state.stage)+" 인식 대기 · Turbo 병렬 판독 · 시도 "+state.decodeAttempts,"ready");
+      var pair=await Promise.all([decodeWithNative(video),decodeWithZXing(fastFrame.imageData,false)]);
+      var nativeResult=pair[0],zxingResult=pair[1];
+      if(nativeResult)state.nativeHit={value:normalizeDecodedValue(nativeResult.text),at:Date.now()};
+      if(zxingResult)state.zxingHit={value:normalizeDecodedValue(zxingResult.text),at:Date.now()};
+      if(nativeResult)onScan(nativeResult.text,nativeResult);
+      if(!state.scanLocked&&zxingResult)onScan(zxingResult.text,zxingResult);
+    }else{
+      var regions=getRegionRects(video),rect1=regions[state.regionIndex++%regions.length],rect2=regions[state.regionIndex++%regions.length],variant=state.variantIndex++%4;
+      var f1=renderRegion(video,rect1,variant),copy=document.createElement("canvas"),cx=copy.getContext("2d",{willReadFrequently:true});copy.width=f1.canvas.width;copy.height=f1.canvas.height;cx.drawImage(f1.canvas,0,0);var img1=cx.getImageData(0,0,copy.width,copy.height);
+      var f2=renderRegion(video,rect2,(variant+1)%4);
+      setScannerStatus(stageLabel(state.stage)+" 정밀 탐색 · 2영역 병렬 · 시도 "+state.decodeAttempts,"ready");
+      var results=await Promise.all([decodeWithNative(video),decodeWithZXing(img1,true),decodeWithZXing(f2.imageData,true)]);
+      for(var i=0;i<results.length&&!state.scanLocked;i++){var result=results[i];if(result){if(result.engine==="Native")state.nativeHit={value:normalizeDecodedValue(result.text),at:Date.now()};else state.zxingHit={value:normalizeDecodedValue(result.text),at:Date.now()};onScan(result.text,result);}}
     }
-    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · "+frame.label+" · 시도 "+state.decodeAttempts,"ready");
-    var result=await decodeWithZXing(frame.imageData,precise);
-    if(result){state.zxingHit={value:normalizeDecodedValue(result.text),at:Date.now()};onScan(result.text,result);}
-  }catch(e){
-    state.decodeErrors++;state.lastDecodeError=e&&e.message?e.message:String(e);console.warn("decode error",e);
-    setScannerStatus("디코더 오류: "+state.lastDecodeError,"error");
-  }finally{recordDecodeTime(performance.now()-started);state.decodeBusy=false;}
+  }catch(e){state.decodeErrors++;state.lastDecodeError=e&&e.message||String(e);if(state.decodeErrors<4||state.decodeErrors%20===0)console.warn("decode error",e);}
+  finally{recordDecodeTime(performance.now()-started);state.decodeBusy=false;}
 }
+
 function scanningLoop(){if(!state.scanning)return;decodeFrame();state.animationId=requestAnimationFrame(scanningLoop);}
 
 function chooseRearCamera(devices){
@@ -577,13 +587,14 @@ function download(name,content,type){
   a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(url);},1000);
 }
-function exportCSV(){
-  if(!state.records.length){toast("내보낼 데이터가 없습니다.");return;}
+function exportCSV(filterType){
+  var exportRecords=state.records.filter(function(r){return !filterType||(r.workType||"신규 증설")===filterType;});
+  if(!exportRecords.length){toast("선택한 작업유형에 내보낼 데이터가 없습니다.");return;}
   var heads=["No","작업유형","신규 링명","신규 국사명","Rack","Shelf","Slot 바코드","Slot Number","신규 파장","재배치 전 국사","재배치 전 링명","재배치 전 슬롯","재배치 전 파장","장비 카테고리","유니트명","유니트바코드","재배치 후 국사","재배치 후 링명","재배치 후 슬롯","재배치 후 파장","비고","등록시각"];
-  var lines=[heads.map(csvEscape).join(",")];state.records.forEach(function(r,i){lines.push([i+1,r.workType||"신규 증설",r.ring||"",r.office||"",r.rack||"",r.shelf||"",r.slot||"",r.slotNumber||"",r.wavelength||"",r.beforeOffice||"",r.beforeRing||"",r.beforeSlot||"",r.beforeWavelength||"",r.unitCategory||"",r.unitName||"",r.unitBarcode||"",r.afterOffice||"",r.afterRing||"",r.afterSlot||"",r.afterWavelength||"",r.memo||"",r.createdAt||""].map(csvEscape).join(","));});
-  download("equipment_work_"+new Date().toISOString().slice(0,10)+".csv","\ufeff"+lines.join("\r\n"),"text/csv;charset=utf-8");
+  var lines=[heads.map(csvEscape).join(",")];exportRecords.forEach(function(r,i){lines.push([i+1,r.workType||"신규 증설",r.ring||"",r.office||"",r.rack||"",r.shelf||"",r.slot||"",r.slotNumber||"",r.wavelength||"",r.beforeOffice||"",r.beforeRing||"",r.beforeSlot||"",r.beforeWavelength||"",r.unitCategory||"",r.unitName||"",r.unitBarcode||"",r.afterOffice||"",r.afterRing||"",r.afterSlot||"",r.afterWavelength||"",r.memo||"",r.createdAt||""].map(csvEscape).join(","));});
+  var prefix=filterType==="재배치"?"relocation":"new_install";
+  download(prefix+"_"+new Date().toISOString().slice(0,10)+".csv","\ufeff"+lines.join("\r\n"),"text/csv;charset=utf-8");
 }
-
 
 
 
@@ -663,7 +674,10 @@ $("slotNumber").addEventListener("input",function(){
 });
 $("saveSlotBtn").addEventListener("click",saveSlot);
 $("cancelSlotBtn").addEventListener("click",cancelSlot);
-$("csvBtn").addEventListener("click",exportCSV);
+$("newRecordsTab").addEventListener("click",function(){showRecordPanel("new");});
+$("relocationRecordsTab").addEventListener("click",function(){showRecordPanel("relocation");});
+$("newCsvBtn").addEventListener("click",function(){exportCSV("신규 증설");});
+$("relocationCsvBtn").addEventListener("click",function(){exportCSV("재배치");});
 
 function environmentCheck(){
   var okSecure=location.protocol==="https:"||location.hostname==="localhost";
