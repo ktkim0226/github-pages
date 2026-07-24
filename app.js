@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.1.0";
+var APP_VERSION="1.0";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -281,7 +281,7 @@ function openRecordsPreview(filterType){
   previewFilterType=filterType;
   var rows=state.records.filter(function(r){return (r.workType||"신규 증설")===filterType;});
   text("recordsPreviewTitle",filterType+" 저장 데이터 미리보기");
-  text("recordsPreviewSummary","총 "+rows.length+"건 · 실물 바코드와 비교한 뒤 CSV 저장 또는 공유하세요.");
+  text("recordsPreviewSummary","총 "+rows.length+"건 · 실물 바코드와 비교한 뒤 XLSX 저장 또는 공유하세요.");
   $("recordsPreviewList").innerHTML=rows.length?rows.map(buildPreviewCard).join(""):'<div class="preview-empty">미리보기할 저장 데이터가 없습니다.</div>';
   $("previewCsvBtn").disabled=!rows.length;$("previewShareBtn").disabled=!rows.length;
   show("recordsPreviewModal");document.documentElement.classList.add("preview-open");document.body.classList.add("preview-open");
@@ -419,7 +419,7 @@ function applyEditedManual(){
   saveLocal();updateUI();closeCodeEdit();toast(stageLabel(stage)+" 값을 수정했습니다.");
 }
 function resetCurrentInput(){
-  if(!confirm("입력 중인 기본정보와 Rack·Shelf·Slot 값을 모두 초기화하시겠습니까?\\n저장된 CSV 데이터는 삭제되지 않습니다."))return;
+  if(!confirm("입력 중인 기본정보와 Rack·Shelf·Slot 값을 모두 초기화하시겠습니까?\\n저장된 XLSX 데이터는 삭제되지 않습니다."))return;
   stopScanner(true).then(function(){
     state.ring="";state.office="";state.rack="";state.shelf="";state.slot="";
     state.skipRack=false;state.skipShelf=false;state.stage="rack";state.started=false;
@@ -638,51 +638,69 @@ function stopScanner(closeModal){
   return Promise.resolve();
 }
 
-function csvEscape(v){return '"'+String(v==null?"":v).replace(/"/g,'""')+'"';}
 function download(name,content,type){
   var blob=new Blob([content],{type:type}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(url);},1000);
 }
-function buildCsvPackage(filterType){
+function buildXlsxPackage(filterType){
   var exportRecords=state.records.filter(function(r){return !filterType||(r.workType||"신규 증설")===filterType;});
   if(!exportRecords.length){toast("선택한 작업유형에 내보낼 데이터가 없습니다.");return null;}
-  var heads=["No","작업유형","신규 링명","신규 국사명","Rack","Shelf","Slot 바코드","Slot Number","신규 파장","재배치 전 국사","재배치 전 링명","재배치 전 슬롯","재배치 전 파장","장비 카테고리","유니트명","유니트바코드","재배치 후 국사","재배치 후 링명","재배치 후 슬롯","재배치 후 파장","비고","등록시각"];
-  var lines=[heads.map(csvEscape).join(",")];
-  exportRecords.forEach(function(r,i){lines.push([i+1,r.workType||"신규 증설",r.ring||"",r.office||"",r.rack||"",r.shelf||"",r.slot||"",r.slotNumber||"",r.wavelength||"",r.beforeOffice||"",r.beforeRing||"",r.beforeSlot||"",r.beforeWavelength||"",r.unitCategory||"",r.unitName||"",r.unitBarcode||"",r.afterOffice||"",r.afterRing||"",r.afterSlot||"",r.afterWavelength||"",r.memo||"",r.createdAt||""].map(csvEscape).join(","));});
+  if(!window.XLSX||!XLSX.utils||typeof XLSX.write!=="function"){toast("XLSX 저장 모듈을 불러오지 못했습니다. 인터넷 연결 후 다시 시도해 주세요.");return null;}
+  var relocation=filterType==="재배치";
+  var heads=relocation
+    ?["No","재배치 전 국사","재배치 전 링명","재배치 전 슬롯","재배치 전 파장","장비 카테고리","유니트명","유니트바코드","재배치 후 국사","재배치 후 링명","재배치 후 슬롯","재배치 후 파장","비고","등록시각"]
+    :["No","링명","국사명","Rack","Shelf","Slot 바코드","Slot Number","파장","장비 카테고리","유니트명","비고","등록시각"];
+  var rows=[heads];
+  exportRecords.forEach(function(r,i){
+    rows.push(relocation
+      ?[i+1,r.beforeOffice||"",r.beforeRing||"",r.beforeSlot||"",r.beforeWavelength||"",r.unitCategory||"",r.unitName||"",r.unitBarcode||"",r.afterOffice||"",r.afterRing||"",r.afterSlot||"",r.afterWavelength||"",r.memo||"",r.createdAt||""]
+      :[i+1,r.ring||"",r.office||"",r.rack||"",r.shelf||"",r.slot||"",r.slotNumber||"",r.wavelength||"",r.unitCategory||"",r.unitName||"",r.memo||"",r.createdAt||""]);
+  });
+  var sheet=XLSX.utils.aoa_to_sheet(rows);
+  sheet["!cols"]=heads.map(function(head,index){
+    var max=String(head).length;
+    rows.slice(1).forEach(function(row){max=Math.max(max,String(row[index]==null?"":row[index]).length);});
+    return {wch:Math.min(Math.max(max+2,10),36)};
+  });
+  sheet["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length-1,c:heads.length-1}})};
+  var workbook=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook,sheet,relocation?"재배치":"신규증설");
+  var content=XLSX.write(workbook,{bookType:"xlsx",type:"array",compression:true});
   var fileType=filterType==="재배치"?"재배치":"신규증설";
   var now=new Date();
   var dateText=String(now.getFullYear())+String(now.getMonth()+1).padStart(2,"0")+String(now.getDate()).padStart(2,"0");
-  var seqKey="assetBarcodeCsvSeq:"+fileType+":"+dateText;
+  var seqKey="assetBarcodeXlsxSeq:"+fileType+":"+dateText;
   var sequence=parseInt(localStorage.getItem(seqKey)||"0",10)+1;
-  return {fileType:fileType,dateText:dateText,seqKey:seqKey,sequence:sequence,fileName:fileType+"_자산바코드_"+dateText+"-"+sequence+".csv",content:"\ufeff"+lines.join("\r\n")};
+  return {fileType:fileType,dateText:dateText,seqKey:seqKey,sequence:sequence,fileName:fileType+"_자산바코드_"+dateText+"-"+sequence+".xlsx",content:content};
 }
-function commitCsvSequence(pkg){localStorage.setItem(pkg.seqKey,String(pkg.sequence));}
-function exportCSV(filterType){
-  var pkg=buildCsvPackage(filterType);if(!pkg)return;
-  download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");
-  commitCsvSequence(pkg);
+function commitXlsxSequence(pkg){localStorage.setItem(pkg.seqKey,String(pkg.sequence));}
+function exportXLSX(filterType){
+  var pkg=buildXlsxPackage(filterType);if(!pkg)return;
+  download(pkg.fileName,pkg.content,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  commitXlsxSequence(pkg);
 }
-async function shareCSV(filterType){
-  var pkg=buildCsvPackage(filterType);if(!pkg)return;
+async function shareXLSX(filterType){
+  var pkg=buildXlsxPackage(filterType);if(!pkg)return;
   var file;
-  try{file=new File([pkg.content],pkg.fileName,{type:"text/csv;charset=utf-8"});}
-  catch(err){toast("이 브라우저는 파일 공유를 지원하지 않아 CSV로 저장합니다.");download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");commitCsvSequence(pkg);return;}
-  if(!navigator.share){toast("공유 기능을 지원하지 않아 CSV로 저장합니다.");download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");commitCsvSequence(pkg);return;}
-  var shareData={title:pkg.fileType+" 자산바코드",text:pkg.fileType+" 자산바코드 CSV 파일입니다.",files:[file]};
+  var mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  try{file=new File([pkg.content],pkg.fileName,{type:mime});}
+  catch(err){toast("이 브라우저는 파일 공유를 지원하지 않아 XLSX로 저장합니다.");download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);return;}
+  if(!navigator.share){toast("공유 기능을 지원하지 않아 XLSX로 저장합니다.");download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);return;}
+  var shareData={title:pkg.fileType+" 자산바코드",text:pkg.fileType+" 자산바코드 XLSX 파일입니다.",files:[file]};
   if(navigator.canShare&&!navigator.canShare({files:[file]})){
-    toast("이 브라우저는 CSV 파일 공유를 지원하지 않아 파일로 저장합니다.");
-    download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");commitCsvSequence(pkg);return;
+    toast("이 브라우저는 XLSX 파일 공유를 지원하지 않아 파일로 저장합니다.");
+    download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);return;
   }
   try{
     await navigator.share(shareData);
-    commitCsvSequence(pkg);
+    commitXlsxSequence(pkg);
     toast("공유 화면에서 카카오톡을 선택해 전송할 수 있습니다.");
   }catch(err){
     if(err&&err.name==="AbortError")return;
     console.error(err);
-    toast("공유하지 못했습니다. CSV 파일로 저장합니다.");
-    download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");commitCsvSequence(pkg);
+    toast("공유하지 못했습니다. XLSX 파일로 저장합니다.");
+    download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);
   }
 }
 
@@ -770,12 +788,12 @@ $("relocationPreviewBtn").addEventListener("click",function(){openRecordsPreview
 $("closeRecordsPreviewBtn").addEventListener("click",closeRecordsPreview);
 $("previewBackBtn").addEventListener("click",closeRecordsPreview);
 $("recordsPreviewModal").addEventListener("click",function(e){if(e.target===$("recordsPreviewModal"))closeRecordsPreview();});
-$("previewCsvBtn").addEventListener("click",function(){exportCSV(previewFilterType);});
-$("previewShareBtn").addEventListener("click",function(){shareCSV(previewFilterType);});
-$("newCsvBtn").addEventListener("click",function(){exportCSV("신규 증설");});
-$("newShareBtn").addEventListener("click",function(){shareCSV("신규 증설");});
-$("relocationCsvBtn").addEventListener("click",function(){exportCSV("재배치");});
-$("relocationShareBtn").addEventListener("click",function(){shareCSV("재배치");});
+$("previewCsvBtn").addEventListener("click",function(){exportXLSX(previewFilterType);});
+$("previewShareBtn").addEventListener("click",function(){shareXLSX(previewFilterType);});
+$("newCsvBtn").addEventListener("click",function(){exportXLSX("신규 증설");});
+$("newShareBtn").addEventListener("click",function(){shareXLSX("신규 증설");});
+$("relocationCsvBtn").addEventListener("click",function(){exportXLSX("재배치");});
+$("relocationShareBtn").addEventListener("click",function(){shareXLSX("재배치");});
 
 function environmentCheck(){
   var okSecure=location.protocol==="https:"||location.hostname==="localhost";
