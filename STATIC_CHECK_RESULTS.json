@@ -1,12 +1,10 @@
 {
-  "js_syntax": true,
-  "missing_dom_ids": [],
-  "duplicate_ids": [],
-  "version14": true,
-  "mode_gate": true,
-  "relocation_fields": true,
-  "unit_barcode_only_scan": true,
-  "optional_save": true,
-  "legacy_record_key": true,
-  "csv_work_type": true
+  "app_version_17": true,
+  "new_filename_rule": true,
+  "relocation_filename_rule": true,
+  "local_date": true,
+  "daily_sequence": true,
+  "csv_extension": true,
+  "version_json": true,
+  "sw_cache_v17": true
 }

@@ -143,7 +143,7 @@ html.edit-open,body.edit-open{overflow:hidden!important;height:100%}
 .update-banner div{display:grid;gap:2px}.update-banner strong{font-size:14px}.update-banner span{font-size:12px;color:#cbd5e1}.update-banner button{min-height:38px;padding:7px 12px;background:#22c55e;color:#052e16;white-space:nowrap}.update-banner .update-dismiss{width:36px;min-height:36px;padding:0;border-radius:50%;background:#334155;color:#fff;font-size:20px}
 @media(max-width:560px){.update-banner{grid-template-columns:1fr auto}.update-banner div{grid-column:1/-1;padding-right:28px}.update-banner .update-dismiss{position:absolute;right:8px;top:8px}.update-banner #applyUpdateBtn{grid-column:1/-1;width:100%}}
 
-/* v16 relocation distinction and separated records */
+/* v17 relocation distinction and separated records */
 .relocation-group.relocation-before{background:#fff1f2;border-color:#fecdd3;box-shadow:inset 4px 0 0 #fb7185}
 .relocation-group.relocation-before h3{color:#be123c}
 .relocation-group.relocation-after{background:#eff6ff;border-color:#bfdbfe;box-shadow:inset 4px 0 0 #60a5fa}
@@ -151,7 +151,32 @@ html.edit-open,body.edit-open{overflow:hidden!important;height:100%}
 .record-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;padding:5px;background:#e2e8f0;border-radius:13px}
 .record-tab{min-height:44px;background:transparent;color:#475569;border:0}
 .record-tab.active{background:#fff;color:#0f172a;box-shadow:0 2px 8px rgba(15,23,42,.12)}
-.record-export{width:100%;margin-bottom:10px}.record-panel.hidden{display:none}
+.record-export-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}.record-export{width:100%;margin:0}.kakao-share{background:#fee500;color:#191919;border:1px solid #e2cc00;font-weight:800}.kakao-share:active{transform:translateY(1px)}@media(max-width:560px){.record-export-actions{grid-template-columns:1fr}}.record-panel.hidden{display:none}
 #newRecordsPanel{border-top:3px solid #22c55e;padding-top:10px}
 #relocationRecordsPanel{border-top:3px solid #8b5cf6;padding-top:10px}
-.engine-badge::after{content:' · Turbo Hybrid v16'}
+.engine-badge::after{content:' · Turbo Hybrid v17'}
+
+/* v1.0 full-screen record preview */
+.preview-button{background:#7c3aed;color:#fff}
+.records-preview-modal{position:fixed;inset:0;z-index:1300;background:rgba(15,23,42,.78);display:flex;align-items:stretch;justify-content:center;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.records-preview-sheet{width:min(100%,760px);height:100%;background:#f8fafc;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+.records-preview-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 16px 12px;background:#fff;border-bottom:1px solid #e2e8f0}
+.records-preview-header h2{margin:0;font-size:1.15rem}.records-preview-header p{margin:5px 0 0;color:#64748b;font-size:.84rem}
+.preview-close{width:42px;min-width:42px;min-height:42px;padding:0;border-radius:50%;background:#e2e8f0;color:#334155;font-size:18px}
+.records-preview-list{overflow-y:auto;padding:12px 12px 24px;overscroll-behavior:contain}
+.preview-empty{padding:32px 18px;text-align:center;color:#64748b;background:#fff;border-radius:14px}
+.preview-record-card{background:#fff;border:1px solid #dbe4ee;border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 4px 14px rgba(15,23,42,.05)}
+.preview-record-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #eef2f7}
+.preview-record-top strong{font-size:1rem}.preview-record-top time{font-size:.75rem;color:#64748b}
+.preview-fields{display:grid;grid-template-columns:120px 1fr;gap:7px 10px;align-items:start}
+.preview-fields dt{font-size:.78rem;font-weight:800;color:#475569}.preview-fields dd{margin:0;font-size:.92rem;font-weight:700;color:#0f172a;word-break:break-all;min-height:20px}
+.preview-fields dd.empty{color:#94a3b8;font-weight:500}
+.preview-section{margin-top:12px;padding:11px;border-radius:12px}.preview-section h3{margin:0 0 9px;font-size:.9rem}
+.preview-section.before{background:#fff1f2;border:1px solid #fecdd3}.preview-section.before h3{color:#be123c}
+.preview-section.after{background:#eff6ff;border:1px solid #bfdbfe}.preview-section.after h3{color:#1d4ed8}
+.preview-section .preview-fields{grid-template-columns:76px 1fr}
+.records-preview-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px max(10px,env(safe-area-inset-bottom));background:#fff;border-top:1px solid #e2e8f0}
+.records-preview-actions button{min-height:48px}.records-preview-actions #previewBackBtn{grid-column:1/-1}
+html.preview-open,body.preview-open{overflow:hidden!important;height:100%}
+@media(min-width:700px){.records-preview-modal{padding:24px}.records-preview-sheet{height:min(92vh,900px);border-radius:20px}.records-preview-list{padding:16px 18px 28px}}
+@media(max-width:430px){.preview-fields{grid-template-columns:98px 1fr}.record-export-actions{grid-template-columns:1fr!important}}

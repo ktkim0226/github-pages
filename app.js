@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="16.0.0";
+var APP_VERSION="1.1.0";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -119,9 +119,9 @@ function preciseFormats(){
 }
 function activeFormats(){return preciseFormats();}
 function profileConfig(){
-  if(state.performanceProfile==="fast")return {interval:60,preciseAfter:700,qualitySkip:false,maxFastWidth:900,confirmWindow:1200};
-  if(state.performanceProfile==="accurate")return {interval:115,preciseAfter:260,qualitySkip:true,maxFastWidth:1200,confirmWindow:2200};
-  return {interval:80,preciseAfter:480,qualitySkip:true,maxFastWidth:1024,confirmWindow:1700};
+  if(state.performanceProfile==="fast")return {interval:48,preciseAfter:520,qualitySkip:false,maxFastWidth:960,confirmWindow:1050};
+  if(state.performanceProfile==="accurate")return {interval:95,preciseAfter:220,qualitySkip:true,maxFastWidth:1280,confirmWindow:1900};
+  return {interval:62,preciseAfter:360,qualitySkip:false,maxFastWidth:1100,confirmWindow:1450};
 }
 
 function nativeFormatsForMode(){
@@ -254,6 +254,40 @@ function renderRecords(){
 function showRecordPanel(kind){
   var isNew=kind==="new";$("newRecordsTab").classList.toggle("active",isNew);$("relocationRecordsTab").classList.toggle("active",!isNew);$("newRecordsPanel").classList.toggle("hidden",!isNew);$("relocationRecordsPanel").classList.toggle("hidden",isNew);
 }
+
+
+var previewFilterType="신규 증설";
+function previewValue(value){
+  var v=clean(value||"");
+  return v?esc(v):'<span class="empty">미입력</span>';
+}
+function previewField(label,value){
+  var v=clean(value||"");
+  return '<dt>'+esc(label)+'</dt><dd'+(v?'':' class="empty"')+'>'+ (v?esc(v):'미입력') +'</dd>';
+}
+function buildPreviewCard(r,index){
+  var type=r.workType||"신규 증설";
+  var top='<div class="preview-record-top"><strong>No. '+(index+1)+' · '+esc(type)+'</strong><time>'+previewValue(r.createdAt||"")+'</time></div>';
+  if(type==="재배치"){
+    return '<article class="preview-record-card">'+top+
+      '<section class="preview-section before"><h3>재배치 전</h3><dl class="preview-fields">'+previewField("국사",r.beforeOffice)+previewField("링명",r.beforeRing)+previewField("슬롯",r.beforeSlot)+previewField("파장",r.beforeWavelength)+'</dl></section>'+
+      '<dl class="preview-fields">'+previewField("장비 카테고리",r.unitCategory)+previewField("유니트명",r.unitName)+previewField("유니트바코드",r.unitBarcode)+previewField("비고",r.memo)+'</dl>'+
+      '<section class="preview-section after"><h3>재배치 후</h3><dl class="preview-fields">'+previewField("국사",r.afterOffice)+previewField("링명",r.afterRing)+previewField("슬롯",r.afterSlot)+previewField("파장",r.afterWavelength)+'</dl></section></article>';
+  }
+  return '<article class="preview-record-card">'+top+'<dl class="preview-fields">'+
+    previewField("국사명",r.office)+previewField("링명",r.ring)+previewField("Rack 바코드",r.rack)+previewField("Shelf 바코드",r.shelf)+previewField("Slot 바코드",r.slot)+previewField("Slot Number",r.slotNumber)+previewField("파장",r.wavelength)+previewField("장비 카테고리",r.unitCategory)+previewField("유니트명",r.unitName)+previewField("비고",r.memo)+'</dl></article>';
+}
+function openRecordsPreview(filterType){
+  previewFilterType=filterType;
+  var rows=state.records.filter(function(r){return (r.workType||"신규 증설")===filterType;});
+  text("recordsPreviewTitle",filterType+" 저장 데이터 미리보기");
+  text("recordsPreviewSummary","총 "+rows.length+"건 · 실물 바코드와 비교한 뒤 CSV 저장 또는 공유하세요.");
+  $("recordsPreviewList").innerHTML=rows.length?rows.map(buildPreviewCard).join(""):'<div class="preview-empty">미리보기할 저장 데이터가 없습니다.</div>';
+  $("previewCsvBtn").disabled=!rows.length;$("previewShareBtn").disabled=!rows.length;
+  show("recordsPreviewModal");document.documentElement.classList.add("preview-open");document.body.classList.add("preview-open");
+  $("recordsPreviewList").scrollTop=0;
+}
+function closeRecordsPreview(){hide("recordsPreviewModal");document.documentElement.classList.remove("preview-open");document.body.classList.remove("preview-open");}
 
 function selectWorkMode(mode){
   stopScanner(true);state.workMode=mode;state.started=false;state.stage=mode==="relocation"?"unitBarcode":"rack";
@@ -494,6 +528,17 @@ function renderFastRegion(video){
   var canvas=$("scanCanvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});canvas.width=tw;canvas.height=th;ctx.drawImage(video,rx,ry,rw,rh,0,0,tw,th);
   return {canvas:canvas,imageData:ctx.getImageData(0,0,tw,th),label:"고속 중앙/원본"};
 }
+function renderAutoFastRegions(video){
+  var vw=video.videoWidth,vh=video.videoHeight,cfg=profileConfig();
+  function capture(rx,ry,rw,rh,minW,minH){
+    var scale=Math.min(1,cfg.maxFastWidth/rw),tw=Math.max(minW,Math.floor(rw*scale)),th=Math.max(minH,Math.floor(rh*scale));
+    var c=document.createElement("canvas"),x=c.getContext("2d",{willReadFrequently:true});c.width=tw;c.height=th;
+    x.drawImage(video,rx,ry,rw,rh,0,0,tw,th);return x.getImageData(0,0,tw,th);
+  }
+  var bw=Math.floor(vw*.94),bh=Math.max(150,Math.floor(vh*.28)),bx=Math.floor((vw-bw)/2),by=Math.floor((vh-bh)/2);
+  var qs=Math.floor(Math.min(vw*.70,vh*.66)),qx=Math.floor((vw-qs)/2),qy=Math.floor((vh-qs)/2);
+  return {barcode:capture(bx,by,bw,bh,360,150),qr:capture(qx,qy,qs,qs,300,300)};
+}
 function frameSignature(video){
   var now=performance.now();if(now-state.lastFrameSignatureAt<180)return null;state.lastFrameSignatureAt=now;
   var c=state.qualityCanvas||(state.qualityCanvas=document.createElement("canvas"));c.width=24;c.height=18;var x=c.getContext("2d",{willReadFrequently:true});x.drawImage(video,0,0,24,18);var d=x.getImageData(0,0,24,18).data,sum=0;
@@ -514,14 +559,24 @@ async function decodeFrame(){
   try{
     var elapsed=now-state.scanStartedAt,precise=elapsed>=cfg.preciseAfter;
     if(!precise){
-      var fastFrame=renderFastRegion(video);
-      setScannerStatus(stageLabel(state.stage)+" 인식 대기 · Turbo 병렬 판독 · 시도 "+state.decodeAttempts,"ready");
-      var pair=await Promise.all([decodeWithNative(video),decodeWithZXing(fastFrame.imageData,false)]);
-      var nativeResult=pair[0],zxingResult=pair[1];
-      if(nativeResult)state.nativeHit={value:normalizeDecodedValue(nativeResult.text),at:Date.now()};
-      if(zxingResult)state.zxingHit={value:normalizeDecodedValue(zxingResult.text),at:Date.now()};
-      if(nativeResult)onScan(nativeResult.text,nativeResult);
-      if(!state.scanLocked&&zxingResult)onScan(zxingResult.text,zxingResult);
+      setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 적응형 병렬 판독 · 시도 "+state.decodeAttempts,"ready");
+      var fastResults;
+      if(state.scanMode==="auto"){
+        var autoFrames=renderAutoFastRegions(video);
+        fastResults=await Promise.all([
+          decodeWithNative(video),
+          window.ZXingWASM.readBarcodes(autoFrames.barcode,{formats:["Code128","Code39","Code93","ITF","EAN13","EAN8","UPCA","UPCE"],tryHarder:false,tryRotate:false,tryInvert:false,tryDenoise:false,tryDownscale:true,downscaleFactor:1.5,downscaleThreshold:480,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain",eanAddOnSymbol:"Read"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-1D"}:null;}),
+          window.ZXingWASM.readBarcodes(autoFrames.qr,{formats:["QRCode","DataMatrix","MicroQRCode","RMQRCode"],tryHarder:false,tryRotate:true,tryInvert:false,tryDenoise:false,tryDownscale:true,downscaleFactor:1.5,downscaleThreshold:480,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-2D"}:null;})
+        ]);
+      }else{
+        var fastFrame=renderFastRegion(video);
+        fastResults=await Promise.all([decodeWithNative(video),decodeWithZXing(fastFrame.imageData,false)]);
+      }
+      for(var fr=0;fr<fastResults.length&&!state.scanLocked;fr++){
+        var fastResult=fastResults[fr];if(!fastResult)continue;
+        if(fastResult.engine==="Native")state.nativeHit={value:normalizeDecodedValue(fastResult.text),at:Date.now()};else state.zxingHit={value:normalizeDecodedValue(fastResult.text),at:Date.now()};
+        onScan(fastResult.text,fastResult);
+      }
     }else{
       var regions=getRegionRects(video),rect1=regions[state.regionIndex++%regions.length],rect2=regions[state.regionIndex++%regions.length],variant=state.variantIndex++%4;
       var f1=renderRegion(video,rect1,variant),copy=document.createElement("canvas"),cx=copy.getContext("2d",{willReadFrequently:true});copy.width=f1.canvas.width;copy.height=f1.canvas.height;cx.drawImage(f1.canvas,0,0);var img1=cx.getImageData(0,0,copy.width,copy.height);
@@ -552,6 +607,8 @@ async function requestFocus(){
   try{
     var advanced=[];
     if(caps.focusMode&&Array.isArray(caps.focusMode)){if(caps.focusMode.indexOf("continuous")>=0)advanced.push({focusMode:"continuous"});else if(caps.focusMode.indexOf("single-shot")>=0)advanced.push({focusMode:"single-shot"});}
+    if(caps.exposureMode&&Array.isArray(caps.exposureMode)&&caps.exposureMode.indexOf("continuous")>=0)advanced.push({exposureMode:"continuous"});
+    if(caps.whiteBalanceMode&&Array.isArray(caps.whiteBalanceMode)&&caps.whiteBalanceMode.indexOf("continuous")>=0)advanced.push({whiteBalanceMode:"continuous"});
     if(advanced.length)await info.track.applyConstraints({advanced:advanced});
     state.focusPending=true;text("qualityStatus","초점을 다시 맞추는 중입니다. 1초간 고정하세요.");$("qualityStatus").className="quality-status warn";
     setTimeout(function(){state.focusPending=false;},900);return advanced.length>0;
@@ -565,7 +622,7 @@ async function startScanner(){
     if(!state.videoDevices.length){var permission=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});permission.getTracks().forEach(function(t){t.stop();});}
     var devices=await navigator.mediaDevices.enumerateDevices();populateCameraSelect(devices,state.selectedCameraId);
     var chosen=state.selectedCameraId?state.videoDevices.find(function(d){return d.deviceId===state.selectedCameraId;}):chooseRearCamera(devices);
-    var constraints={audio:false,video:{deviceId:chosen?{exact:chosen.deviceId}:undefined,facingMode:chosen?undefined:{ideal:"environment"},width:{ideal:3840,min:1280},height:{ideal:2160,min:720},frameRate:{ideal:30,min:15}}};
+    var constraints={audio:false,video:{deviceId:chosen?{exact:chosen.deviceId}:undefined,facingMode:chosen?undefined:{ideal:"environment"},width:{ideal:1920,min:1280},height:{ideal:1080,min:720},frameRate:{ideal:30,min:24}}};
     state.stream=await navigator.mediaDevices.getUserMedia(constraints);var video=$("scannerVideo");video.srcObject=state.stream;await video.play();
     state.scanning=true;state.scanLocked=false;state.decodeBusy=false;state.frameIndex=0;state.decodeAttempts=0;state.decodeErrors=0;state.regionIndex=0;state.variantIndex=0;state.lastDecodeError="";state.scanStartedAt=performance.now();state.decodeTimes=[];state.lastFrameSignature=null;state.nativeHit=null;state.zxingHit=null;
     setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 다중 프레임 검증 활성","ready");setupCameraControls();await requestFocus();scanningLoop();
@@ -587,15 +644,47 @@ function download(name,content,type){
   a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(url);},1000);
 }
-function exportCSV(filterType){
+function buildCsvPackage(filterType){
   var exportRecords=state.records.filter(function(r){return !filterType||(r.workType||"신규 증설")===filterType;});
-  if(!exportRecords.length){toast("선택한 작업유형에 내보낼 데이터가 없습니다.");return;}
+  if(!exportRecords.length){toast("선택한 작업유형에 내보낼 데이터가 없습니다.");return null;}
   var heads=["No","작업유형","신규 링명","신규 국사명","Rack","Shelf","Slot 바코드","Slot Number","신규 파장","재배치 전 국사","재배치 전 링명","재배치 전 슬롯","재배치 전 파장","장비 카테고리","유니트명","유니트바코드","재배치 후 국사","재배치 후 링명","재배치 후 슬롯","재배치 후 파장","비고","등록시각"];
-  var lines=[heads.map(csvEscape).join(",")];exportRecords.forEach(function(r,i){lines.push([i+1,r.workType||"신규 증설",r.ring||"",r.office||"",r.rack||"",r.shelf||"",r.slot||"",r.slotNumber||"",r.wavelength||"",r.beforeOffice||"",r.beforeRing||"",r.beforeSlot||"",r.beforeWavelength||"",r.unitCategory||"",r.unitName||"",r.unitBarcode||"",r.afterOffice||"",r.afterRing||"",r.afterSlot||"",r.afterWavelength||"",r.memo||"",r.createdAt||""].map(csvEscape).join(","));});
-  var prefix=filterType==="재배치"?"relocation":"new_install";
-  download(prefix+"_"+new Date().toISOString().slice(0,10)+".csv","\ufeff"+lines.join("\r\n"),"text/csv;charset=utf-8");
+  var lines=[heads.map(csvEscape).join(",")];
+  exportRecords.forEach(function(r,i){lines.push([i+1,r.workType||"신규 증설",r.ring||"",r.office||"",r.rack||"",r.shelf||"",r.slot||"",r.slotNumber||"",r.wavelength||"",r.beforeOffice||"",r.beforeRing||"",r.beforeSlot||"",r.beforeWavelength||"",r.unitCategory||"",r.unitName||"",r.unitBarcode||"",r.afterOffice||"",r.afterRing||"",r.afterSlot||"",r.afterWavelength||"",r.memo||"",r.createdAt||""].map(csvEscape).join(","));});
+  var fileType=filterType==="재배치"?"재배치":"신규증설";
+  var now=new Date();
+  var dateText=String(now.getFullYear())+String(now.getMonth()+1).padStart(2,"0")+String(now.getDate()).padStart(2,"0");
+  var seqKey="assetBarcodeCsvSeq:"+fileType+":"+dateText;
+  var sequence=parseInt(localStorage.getItem(seqKey)||"0",10)+1;
+  return {fileType:fileType,dateText:dateText,seqKey:seqKey,sequence:sequence,fileName:fileType+"_자산바코드_"+dateText+"-"+sequence+".csv",content:"\ufeff"+lines.join("\r\n")};
 }
-
+function commitCsvSequence(pkg){localStorage.setItem(pkg.seqKey,String(pkg.sequence));}
+function exportCSV(filterType){
+  var pkg=buildCsvPackage(filterType);if(!pkg)return;
+  download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");
+  commitCsvSequence(pkg);
+}
+async function shareCSV(filterType){
+  var pkg=buildCsvPackage(filterType);if(!pkg)return;
+  var file;
+  try{file=new File([pkg.content],pkg.fileName,{type:"text/csv;charset=utf-8"});}
+  catch(err){toast("이 브라우저는 파일 공유를 지원하지 않아 CSV로 저장합니다.");download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");commitCsvSequence(pkg);return;}
+  if(!navigator.share){toast("공유 기능을 지원하지 않아 CSV로 저장합니다.");download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");commitCsvSequence(pkg);return;}
+  var shareData={title:pkg.fileType+" 자산바코드",text:pkg.fileType+" 자산바코드 CSV 파일입니다.",files:[file]};
+  if(navigator.canShare&&!navigator.canShare({files:[file]})){
+    toast("이 브라우저는 CSV 파일 공유를 지원하지 않아 파일로 저장합니다.");
+    download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");commitCsvSequence(pkg);return;
+  }
+  try{
+    await navigator.share(shareData);
+    commitCsvSequence(pkg);
+    toast("공유 화면에서 카카오톡을 선택해 전송할 수 있습니다.");
+  }catch(err){
+    if(err&&err.name==="AbortError")return;
+    console.error(err);
+    toast("공유하지 못했습니다. CSV 파일로 저장합니다.");
+    download(pkg.fileName,pkg.content,"text/csv;charset=utf-8");commitCsvSequence(pkg);
+  }
+}
 
 
 $("newInstallModeBtn").addEventListener("click",function(){selectWorkMode("new");});
@@ -676,8 +765,17 @@ $("saveSlotBtn").addEventListener("click",saveSlot);
 $("cancelSlotBtn").addEventListener("click",cancelSlot);
 $("newRecordsTab").addEventListener("click",function(){showRecordPanel("new");});
 $("relocationRecordsTab").addEventListener("click",function(){showRecordPanel("relocation");});
+$("newPreviewBtn").addEventListener("click",function(){openRecordsPreview("신규 증설");});
+$("relocationPreviewBtn").addEventListener("click",function(){openRecordsPreview("재배치");});
+$("closeRecordsPreviewBtn").addEventListener("click",closeRecordsPreview);
+$("previewBackBtn").addEventListener("click",closeRecordsPreview);
+$("recordsPreviewModal").addEventListener("click",function(e){if(e.target===$("recordsPreviewModal"))closeRecordsPreview();});
+$("previewCsvBtn").addEventListener("click",function(){exportCSV(previewFilterType);});
+$("previewShareBtn").addEventListener("click",function(){shareCSV(previewFilterType);});
 $("newCsvBtn").addEventListener("click",function(){exportCSV("신규 증설");});
+$("newShareBtn").addEventListener("click",function(){shareCSV("신규 증설");});
 $("relocationCsvBtn").addEventListener("click",function(){exportCSV("재배치");});
+$("relocationShareBtn").addEventListener("click",function(){shareCSV("재배치");});
 
 function environmentCheck(){
   var okSecure=location.protocol==="https:"||location.hostname==="localhost";
