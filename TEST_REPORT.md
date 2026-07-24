@@ -1,4 +1,4 @@
-# v1.0 테스트 결과
+# v1.0.1 테스트 결과
 
 - JavaScript 문법 검사: PASS
 - HTML ID 중복 검사: PASS
@@ -11,7 +11,7 @@
 - UPS/M12 유니트 2단계 선택: PASS
 - 기존 V13 저장 데이터 키 호환: PASS
 - 작업유형 포함 XLSX: PASS
-- 서비스 워커 v1.0 캐시: PASS
+- 서비스 워커 v1.0.1 캐시: PASS
 - 로컬 HTTP 응답: PASS
 - ZIP CRC 무결성: PASS
 
@@ -20,5 +20,12 @@
 - XLSX 한글 파일명 규칙: PASS
 - 신규 증설 XLSX 전용 열 구성: PASS
 - 재배치 XLSX 전용 열 구성: PASS
+- 네이티브·ZXing 고속 병렬 경로: PASS
+- 고속 실패 후 2영역 정밀 보강 경로: PASS
+- 동일 프레임 중복 후보 배제: PASS
+- 서로 다른 프레임 2회 또는 이중 엔진 교차확인: PASS
+- QR 테스트 이미지 판독: PASS
+- EAN-13 테스트 이미지 판독: PASS
+- Code128 테스트 이미지 판독: PASS
 - 단말 현지 날짜 YYYYMMDD 적용: PASS
 - 작업유형별 일자별 순번 분리: PASS

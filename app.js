@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0";
+var APP_VERSION="1.0.1";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -28,11 +28,11 @@ var state={
   scanner:null, stream:null, scanning:false, scanMode:"auto", torchOn:false, cameraCapabilities:null, editingStage:null,
   decodeBusy:false, animationId:0, frameIndex:0, lastDecodeAt:0,
   scanLocked:false, lastDecodedValue:"", lastDecodedAt:0,
-  zxingReadyPromise:null, nativeDetector:null, detectorFormats:[], decodeAttempts:0, decodeErrors:0, lastDecodeError:"",
+  zxingReadyPromise:null, nativeDetector:null, nativeDetectors:{}, detectorFormats:[], decodeAttempts:0, decodeErrors:0, lastDecodeError:"",
   regionIndex:0, variantIndex:0,
   videoDevices:[], selectedCameraId:"", candidateVotes:{}, candidateWindowMs:1800, requiredVotes:2,
   quality:{brightness:0,sharpness:0,lastChecked:0}, qualityCanvas:null, focusPending:false,
-  performanceProfile:"balanced", scanStartedAt:0, fastMissSince:0, decodeTimes:[], lastFrameSignature:null, lastFrameSignatureAt:0, nativeHit:null, zxingHit:null
+  performanceProfile:"balanced", scanStartedAt:0, fastMissSince:0, decodeTimes:[], lastFrameSignature:null, lastFrameSignatureAt:0, nativeHit:null, zxingHit:null, autoCanvases:{}, preciseCopyCanvas:null
 };
 
 function $(id){return document.getElementById(id);}
@@ -50,19 +50,31 @@ function vibrate(){if(navigator.vibrate)navigator.vibrate([60,40,60]);}
 function normalizeDecodedValue(v){
   return clean(v).replace(/[\u0000-\u001F\u007F]/g,"").trim();
 }
-function candidateKey(value,format){return normalizeDecodedValue(value)+"|"+String(format||"");}
+function formatFamily(format){
+  var f=String(format||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  if(/qr/.test(f))return "qr";
+  if(/datamatrix/.test(f))return "datamatrix";
+  if(/code128/.test(f))return "code128";
+  if(/code39/.test(f))return "code39";
+  if(/code93/.test(f))return "code93";
+  if(/ean|upc|isbn/.test(f))return "eanupc";
+  if(/itf/.test(f))return "itf";
+  return f||"unknown";
+}
+function candidateKey(value,format){return normalizeDecodedValue(value)+"|"+formatFamily(format);}
 function resetCandidates(){state.candidateVotes={};text("candidateStatus","동일한 값이 반복 인식되면 자동 확정합니다.");$("candidateStatus").className="candidate-status";}
 function registerCandidate(result){
   var value=normalizeDecodedValue(result&&result.text),format=result&&result.format||"Barcode/QR";
   if(!value)return false;
   var now=Date.now(),key=candidateKey(value,format),cfg=profileConfig(),votes=state.candidateVotes[key]||[];
-  votes=votes.filter(function(ts){return now-ts<=cfg.confirmWindow;});votes.push(now);state.candidateVotes[key]=votes;
-  Object.keys(state.candidateVotes).forEach(function(k){state.candidateVotes[k]=state.candidateVotes[k].filter(function(ts){return now-ts<=cfg.confirmWindow;});if(!state.candidateVotes[k].length)delete state.candidateVotes[k];});
-  var dual=state.nativeHit&&state.zxingHit&&state.nativeHit.value===value&&state.zxingHit.value===value&&Math.abs(state.nativeHit.at-state.zxingHit.at)<1000;
-  var checksumTrusted=/ean|upc/i.test(format);
-  var required=dual?1:(checksumTrusted&&state.performanceProfile!=="accurate"?1:2);
-  text("candidateStatus",dual?"네이티브·ZXing 교차 확인 · 즉시 확정":"후보 "+value+" · "+votes.length+"/"+required+"회 일치");$("candidateStatus").className="candidate-status confirming";
-  if(votes.length>=required){$("candidateStatus").className="candidate-status confirmed";return true;}
+  votes=votes.filter(function(v){return now-v.at<=cfg.confirmWindow;});
+  if(!votes.some(function(v){return v.attempt===state.decodeAttempts;}))votes.push({at:now,attempt:state.decodeAttempts,engine:result.engine||""});
+  state.candidateVotes[key]=votes;
+  Object.keys(state.candidateVotes).forEach(function(k){state.candidateVotes[k]=state.candidateVotes[k].filter(function(v){return now-v.at<=cfg.confirmWindow;});if(!state.candidateVotes[k].length)delete state.candidateVotes[k];});
+  var dual=state.nativeHit&&state.zxingHit&&state.nativeHit.value===value&&state.zxingHit.value===value&&Math.abs(state.nativeHit.at-state.zxingHit.at)<750;
+  var required=dual?1:2;
+  text("candidateStatus",dual?"네이티브·ZXing 교차 확인 · 즉시 확정":"후보 "+value+" · "+votes.length+"/"+required+"프레임 일치");$("candidateStatus").className="candidate-status confirming";
+  if(dual||votes.length>=required){$("candidateStatus").className="candidate-status confirmed";return true;}
   return false;
 }
 
@@ -115,13 +127,20 @@ function preciseFormats(){
     "QRCode","QRCodeModel1","QRCodeModel2","MicroQRCode","RMQRCode","DataMatrix",
     "Aztec","AztecCode","AztecRune","PDF417","CompactPDF417","MicroPDF417","MaxiCode"
   ];
-  return [];
+  if(state.scanMode==="small")return [
+    "QRCode","QRCodeModel1","QRCodeModel2","MicroQRCode","RMQRCode","DataMatrix",
+    "Code128","Code39","Code93","ITF","EAN13","EAN8","UPCA","UPCE"
+  ];
+  return [
+    "QRCode","QRCodeModel1","QRCodeModel2","MicroQRCode","RMQRCode","DataMatrix",
+    "Code128","Code39","Code93","ITF","ITF14","EANUPC","EAN13","EAN8","UPCA","UPCE"
+  ];
 }
 function activeFormats(){return preciseFormats();}
 function profileConfig(){
-  if(state.performanceProfile==="fast")return {interval:48,preciseAfter:520,qualitySkip:false,maxFastWidth:960,confirmWindow:1050};
-  if(state.performanceProfile==="accurate")return {interval:95,preciseAfter:220,qualitySkip:true,maxFastWidth:1280,confirmWindow:1900};
-  return {interval:62,preciseAfter:360,qualitySkip:false,maxFastWidth:1100,confirmWindow:1450};
+  if(state.performanceProfile==="fast")return {interval:42,preciseAfter:260,preciseEvery:3,qualitySkip:false,maxFastWidth:1024,confirmWindow:1250};
+  if(state.performanceProfile==="accurate")return {interval:78,preciseAfter:140,preciseEvery:1,qualitySkip:true,maxFastWidth:1280,confirmWindow:1800};
+  return {interval:52,preciseAfter:190,preciseEvery:2,qualitySkip:false,maxFastWidth:1152,confirmWindow:1450};
 }
 
 function nativeFormatsForMode(){
@@ -192,6 +211,7 @@ function ensureScannerLibrary(){
     if("BarcodeDetector" in window){
       try{
         state.detectorFormats=await BarcodeDetector.getSupportedFormats();
+        state.nativeDetectors={};
         if(state.detectorFormats.length)state.nativeDetector=new BarcodeDetector({formats:state.detectorFormats});
       }catch(e){console.warn("BarcodeDetector 초기화 실패",e);}
     }
@@ -501,7 +521,8 @@ async function decodeWithNative(source){
   if(!state.nativeDetector)return null;
   try{
     var formats=nativeFormatsForMode();
-    var detector=formats.length?new BarcodeDetector({formats:formats}):state.nativeDetector;
+    var key=state.scanMode+"|"+formats.join(",");
+    var detector=formats.length?(state.nativeDetectors[key]||(state.nativeDetectors[key]=new BarcodeDetector({formats:formats}))):state.nativeDetector;
     var found=await detector.detect(source);
     if(found&&found.length)return {text:found[0].rawValue,format:found[0].format||"BarcodeDetector",engine:"Native"};
   }catch(e){console.debug("native miss",e);}
@@ -530,14 +551,14 @@ function renderFastRegion(video){
 }
 function renderAutoFastRegions(video){
   var vw=video.videoWidth,vh=video.videoHeight,cfg=profileConfig();
-  function capture(rx,ry,rw,rh,minW,minH){
+  function capture(key,rx,ry,rw,rh,minW,minH){
     var scale=Math.min(1,cfg.maxFastWidth/rw),tw=Math.max(minW,Math.floor(rw*scale)),th=Math.max(minH,Math.floor(rh*scale));
-    var c=document.createElement("canvas"),x=c.getContext("2d",{willReadFrequently:true});c.width=tw;c.height=th;
+    var c=state.autoCanvases[key]||(state.autoCanvases[key]=document.createElement("canvas")),x=c.getContext("2d",{willReadFrequently:true});c.width=tw;c.height=th;
     x.drawImage(video,rx,ry,rw,rh,0,0,tw,th);return x.getImageData(0,0,tw,th);
   }
   var bw=Math.floor(vw*.94),bh=Math.max(150,Math.floor(vh*.28)),bx=Math.floor((vw-bw)/2),by=Math.floor((vh-bh)/2);
   var qs=Math.floor(Math.min(vw*.70,vh*.66)),qx=Math.floor((vw-qs)/2),qy=Math.floor((vh-qs)/2);
-  return {barcode:capture(bx,by,bw,bh,360,150),qr:capture(qx,qy,qs,qs,300,300)};
+  return {barcode:capture("barcode",bx,by,bw,bh,360,150),qr:capture("qr",qx,qy,qs,qs,300,300)};
 }
 function frameSignature(video){
   var now=performance.now();if(now-state.lastFrameSignatureAt<180)return null;state.lastFrameSignatureAt=now;
@@ -554,36 +575,36 @@ async function decodeFrame(){
   var video=$("scannerVideo");if(!video.videoWidth||video.readyState<2)return;analyzeFrameQuality(video);if(state.focusPending)return;
   var cfg=profileConfig(),now=performance.now();if(now-state.lastDecodeAt<cfg.interval)return;
   if(cfg.qualitySkip&&(state.quality.brightness<30||state.quality.sharpness<3))return;
-  var sig=frameSignature(video);if(sig!==null&&state.lastFrameSignature!==null&&Math.abs(sig-state.lastFrameSignature)<2&&now-state.lastDecodeAt<210)return;if(sig!==null)state.lastFrameSignature=sig;
   state.lastDecodeAt=now;state.decodeBusy=true;state.decodeAttempts++;var started=performance.now();
   try{
-    var elapsed=now-state.scanStartedAt,precise=elapsed>=cfg.preciseAfter;
-    if(!precise){
-      setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 적응형 병렬 판독 · 시도 "+state.decodeAttempts,"ready");
-      var fastResults;
-      if(state.scanMode==="auto"){
-        var autoFrames=renderAutoFastRegions(video);
-        fastResults=await Promise.all([
-          decodeWithNative(video),
-          window.ZXingWASM.readBarcodes(autoFrames.barcode,{formats:["Code128","Code39","Code93","ITF","EAN13","EAN8","UPCA","UPCE"],tryHarder:false,tryRotate:false,tryInvert:false,tryDenoise:false,tryDownscale:true,downscaleFactor:1.5,downscaleThreshold:480,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain",eanAddOnSymbol:"Read"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-1D"}:null;}),
-          window.ZXingWASM.readBarcodes(autoFrames.qr,{formats:["QRCode","DataMatrix","MicroQRCode","RMQRCode"],tryHarder:false,tryRotate:true,tryInvert:false,tryDenoise:false,tryDownscale:true,downscaleFactor:1.5,downscaleThreshold:480,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-2D"}:null;})
-        ]);
-      }else{
-        var fastFrame=renderFastRegion(video);
-        fastResults=await Promise.all([decodeWithNative(video),decodeWithZXing(fastFrame.imageData,false)]);
-      }
-      for(var fr=0;fr<fastResults.length&&!state.scanLocked;fr++){
-        var fastResult=fastResults[fr];if(!fastResult)continue;
-        if(fastResult.engine==="Native")state.nativeHit={value:normalizeDecodedValue(fastResult.text),at:Date.now()};else state.zxingHit={value:normalizeDecodedValue(fastResult.text),at:Date.now()};
-        onScan(fastResult.text,fastResult);
-      }
+    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 고속 병렬 판독 · 시도 "+state.decodeAttempts,"ready");
+    var fastResults;
+    if(state.scanMode==="auto"){
+      var autoFrames=renderAutoFastRegions(video);
+      fastResults=await Promise.all([
+        decodeWithNative(video),
+        window.ZXingWASM.readBarcodes(autoFrames.barcode,{formats:["Code128","Code39","Code93","ITF","EAN13","EAN8","UPCA","UPCE"],tryHarder:false,tryRotate:false,tryInvert:false,tryDenoise:false,tryDownscale:true,downscaleFactor:1.5,downscaleThreshold:480,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain",eanAddOnSymbol:"Read"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-1D"}:null;}),
+        window.ZXingWASM.readBarcodes(autoFrames.qr,{formats:["QRCode","DataMatrix","MicroQRCode","RMQRCode"],tryHarder:false,tryRotate:true,tryInvert:false,tryDenoise:false,tryDownscale:true,downscaleFactor:1.5,downscaleThreshold:480,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-2D"}:null;})
+      ]);
     }else{
+      var fastFrame=renderFastRegion(video);
+      fastResults=await Promise.all([decodeWithNative(video),decodeWithZXing(fastFrame.imageData,false)]);
+    }
+    var fastHits=0;
+    for(var fr=0;fr<fastResults.length&&!state.scanLocked;fr++){
+      var fastResult=fastResults[fr];if(!fastResult)continue;fastHits++;
+      if(fastResult.engine==="Native")state.nativeHit={value:normalizeDecodedValue(fastResult.text),at:Date.now()};else state.zxingHit={value:normalizeDecodedValue(fastResult.text),at:Date.now()};
+      onScan(fastResult.text,fastResult);
+    }
+    if(fastHits){
+      state.fastMissSince=performance.now();
+    }else if(now-state.fastMissSince>=cfg.preciseAfter&&state.decodeAttempts%cfg.preciseEvery===0){
       var regions=getRegionRects(video),rect1=regions[state.regionIndex++%regions.length],rect2=regions[state.regionIndex++%regions.length],variant=state.variantIndex++%4;
-      var f1=renderRegion(video,rect1,variant),copy=document.createElement("canvas"),cx=copy.getContext("2d",{willReadFrequently:true});copy.width=f1.canvas.width;copy.height=f1.canvas.height;cx.drawImage(f1.canvas,0,0);var img1=cx.getImageData(0,0,copy.width,copy.height);
+      var f1=renderRegion(video,rect1,variant),copy=state.preciseCopyCanvas||(state.preciseCopyCanvas=document.createElement("canvas")),cx=copy.getContext("2d",{willReadFrequently:true});copy.width=f1.canvas.width;copy.height=f1.canvas.height;cx.drawImage(f1.canvas,0,0);var img1=cx.getImageData(0,0,copy.width,copy.height);
       var f2=renderRegion(video,rect2,(variant+1)%4);
-      setScannerStatus(stageLabel(state.stage)+" 정밀 탐색 · 2영역 병렬 · 시도 "+state.decodeAttempts,"ready");
-      var results=await Promise.all([decodeWithNative(video),decodeWithZXing(img1,true),decodeWithZXing(f2.imageData,true)]);
-      for(var i=0;i<results.length&&!state.scanLocked;i++){var result=results[i];if(result){if(result.engine==="Native")state.nativeHit={value:normalizeDecodedValue(result.text),at:Date.now()};else state.zxingHit={value:normalizeDecodedValue(result.text),at:Date.now()};onScan(result.text,result);}}
+      setScannerStatus(stageLabel(state.stage)+" 정밀 보강 탐색 · 2영역 병렬 · 시도 "+state.decodeAttempts,"ready");
+      var results=await Promise.all([decodeWithZXing(img1,true),decodeWithZXing(f2.imageData,true)]);
+      for(var i=0;i<results.length&&!state.scanLocked;i++){var result=results[i];if(result){state.zxingHit={value:normalizeDecodedValue(result.text),at:Date.now()};onScan(result.text,result);}}
     }
   }catch(e){state.decodeErrors++;state.lastDecodeError=e&&e.message||String(e);if(state.decodeErrors<4||state.decodeErrors%20===0)console.warn("decode error",e);}
   finally{recordDecodeTime(performance.now()-started);state.decodeBusy=false;}
@@ -610,8 +631,8 @@ async function requestFocus(){
     if(caps.exposureMode&&Array.isArray(caps.exposureMode)&&caps.exposureMode.indexOf("continuous")>=0)advanced.push({exposureMode:"continuous"});
     if(caps.whiteBalanceMode&&Array.isArray(caps.whiteBalanceMode)&&caps.whiteBalanceMode.indexOf("continuous")>=0)advanced.push({whiteBalanceMode:"continuous"});
     if(advanced.length)await info.track.applyConstraints({advanced:advanced});
-    state.focusPending=true;text("qualityStatus","초점을 다시 맞추는 중입니다. 1초간 고정하세요.");$("qualityStatus").className="quality-status warn";
-    setTimeout(function(){state.focusPending=false;},900);return advanced.length>0;
+    state.focusPending=true;text("qualityStatus","초점을 빠르게 맞추는 중입니다. 잠시 고정하세요.");$("qualityStatus").className="quality-status warn";
+    setTimeout(function(){state.focusPending=false;},250);return advanced.length>0;
   }catch(e){console.warn("focus unsupported",e);return false;}
 }
 async function startScanner(){
@@ -624,7 +645,7 @@ async function startScanner(){
     var chosen=state.selectedCameraId?state.videoDevices.find(function(d){return d.deviceId===state.selectedCameraId;}):chooseRearCamera(devices);
     var constraints={audio:false,video:{deviceId:chosen?{exact:chosen.deviceId}:undefined,facingMode:chosen?undefined:{ideal:"environment"},width:{ideal:1920,min:1280},height:{ideal:1080,min:720},frameRate:{ideal:30,min:24}}};
     state.stream=await navigator.mediaDevices.getUserMedia(constraints);var video=$("scannerVideo");video.srcObject=state.stream;await video.play();
-    state.scanning=true;state.scanLocked=false;state.decodeBusy=false;state.frameIndex=0;state.decodeAttempts=0;state.decodeErrors=0;state.regionIndex=0;state.variantIndex=0;state.lastDecodeError="";state.scanStartedAt=performance.now();state.decodeTimes=[];state.lastFrameSignature=null;state.nativeHit=null;state.zxingHit=null;
+    state.scanning=true;state.scanLocked=false;state.decodeBusy=false;state.frameIndex=0;state.decodeAttempts=0;state.decodeErrors=0;state.regionIndex=0;state.variantIndex=0;state.lastDecodeError="";state.scanStartedAt=performance.now();state.fastMissSince=state.scanStartedAt;state.decodeTimes=[];state.lastFrameSignature=null;state.nativeHit=null;state.zxingHit=null;
     setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 다중 프레임 검증 활성","ready");setupCameraControls();await requestFocus();scanningLoop();
   }catch(err){console.error(err);state.scanning=false;setScannerStatus("카메라 또는 WASM 엔진을 실행하지 못했습니다: "+(err.message||err),"error");}
 }
@@ -742,7 +763,7 @@ document.querySelectorAll(".scan-mode").forEach(function(btn){
     stopScanner(false).then(startScanner);
   });
 });
-$("performanceProfile").addEventListener("change",function(){state.performanceProfile=this.value;resetCandidates();state.scanStartedAt=performance.now();state.decodeTimes=[];text("performanceStatus","프로필 변경 적용 중");});
+$("performanceProfile").addEventListener("change",function(){state.performanceProfile=this.value;resetCandidates();state.scanStartedAt=performance.now();state.fastMissSince=state.scanStartedAt;state.decodeTimes=[];text("performanceStatus","프로필 변경 적용 중");});
 $("cameraSelect").addEventListener("change",function(){state.selectedCameraId=this.value;stopScanner(false).then(startScanner);});
 $("focusBtn").addEventListener("click",function(){requestFocus().then(function(ok){toast(ok?"초점을 다시 맞춥니다.":"이 단말은 웹 초점 제어를 지원하지 않습니다.");});});
 document.querySelectorAll("#quickZoom button").forEach(function(btn){btn.addEventListener("click",function(){
