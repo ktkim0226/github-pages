@@ -1,5 +1,5 @@
-const CACHE_NAME="asset-barcode-scanner-v1.0.6";
-const CORE=["./","./index.html","./styles.css?v=1.0.6","./app.js?v=1.0.6","./manifest.webmanifest","./icon.svg"];
+const CACHE_NAME="asset-barcode-scanner-v1.0.7";
+const CORE=["./","./index.html","./styles.css?v=1.0.7","./app.js?v=1.0.7","./manifest.webmanifest","./icon.svg"];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE)));
 });
