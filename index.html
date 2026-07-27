@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="자산바코드 스캐너">
-  <title>자산바코드 스캐너 v1.0.3</title>
+  <title>자산바코드 스캐너 v1.0.5</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.0.3">
+  <link rel="stylesheet" href="./styles.css?v=1.0.5">
 </head>
 <body>
 <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
@@ -21,7 +21,7 @@
 <header>
   <div>
     <h1>자산바코드 스캐너</h1>
-    <p>신규 증설 또는 재배치 작업을 선택하여 등록 · v1.0.3</p>
+    <p>신규 증설 또는 재배치 작업을 선택하여 등록 · v1.0.5</p>
   </div>
 </header>
 
@@ -173,11 +173,11 @@
       <button id="relocationRecordsTab" class="record-tab" type="button">재배치 <span id="relocationRecordCount" class="badge">0</span></button>
     </div>
     <div id="newRecordsPanel" class="record-panel">
-      <div class="record-export-actions"><button id="newPreviewBtn" class="preview-button record-export" type="button">전체 미리보기</button><button id="newCsvBtn" class="success record-export" type="button">신규 증설 XLSX 내보내기</button><button id="newShareBtn" class="kakao-share record-export" type="button">카카오톡 내용 공유</button></div>
+      <div class="record-export-actions"><button id="newPreviewBtn" class="preview-button record-export" type="button">전체 미리보기</button><button id="newCsvBtn" class="success record-export" type="button">신규 증설 XLSX 내보내기</button><button id="newShareBtn" class="kakao-share record-export" type="button">카카오톡 파일+내용 공유</button></div>
       <div class="table-wrap"><table><thead><tr><th>No.</th><th>국사/링명</th><th>Rack</th><th>Shelf</th><th>Slot</th><th>파장</th><th>장비</th><th>유니트명</th><th>비고</th><th>등록시각</th><th>삭제</th></tr></thead><tbody id="newRecordBody"></tbody></table></div>
     </div>
     <div id="relocationRecordsPanel" class="record-panel hidden">
-      <div class="record-export-actions"><button id="relocationPreviewBtn" class="preview-button record-export" type="button">전체 미리보기</button><button id="relocationCsvBtn" class="success record-export" type="button">재배치 XLSX 내보내기</button><button id="relocationShareBtn" class="kakao-share record-export" type="button">카카오톡 내용 공유</button></div>
+      <div class="record-export-actions"><button id="relocationPreviewBtn" class="preview-button record-export" type="button">전체 미리보기</button><button id="relocationCsvBtn" class="success record-export" type="button">재배치 XLSX 내보내기</button><button id="relocationShareBtn" class="kakao-share record-export" type="button">카카오톡 파일+내용 공유</button></div>
       <div class="table-wrap"><table><thead><tr><th>No.</th><th>재배치 전</th><th>장비</th><th>유니트명</th><th>유니트바코드</th><th>재배치 후</th><th>비고</th><th>등록시각</th><th>삭제</th></tr></thead><tbody id="relocationRecordBody"></tbody></table></div>
     </div>
   </section>
@@ -198,7 +198,7 @@
     <div id="recordsPreviewList" class="records-preview-list"></div>
     <div class="records-preview-actions">
       <button id="previewCsvBtn" class="success" type="button">XLSX 내보내기</button>
-      <button id="previewShareBtn" class="kakao-share" type="button">카카오톡 내용 공유</button>
+      <button id="previewShareBtn" class="kakao-share" type="button">카카오톡 파일+내용 공유</button>
       <button id="previewBackBtn" class="secondary" type="button">확인 완료</button>
     </div>
   </div>
@@ -294,9 +294,9 @@
 <script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.2/dist/iife/reader/index.js"
   crossorigin="anonymous"
   onerror="this.onerror=null;this.src='https://unpkg.com/zxing-wasm@3.1.2/dist/iife/reader/index.js';"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"
   crossorigin="anonymous"
-  onerror="this.onerror=null;this.src='https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js';"></script>
-<script src="./app.js?v=1.0.3"></script>
+  onerror="this.onerror=null;this.src='https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';"></script>
+<script src="./app.js?v=1.0.5"></script>
 </body>
 </html>

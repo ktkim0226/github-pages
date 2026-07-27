@@ -156,7 +156,7 @@ html.edit-open,body.edit-open{overflow:hidden!important;height:100%}
 #relocationRecordsPanel{border-top:3px solid #8b5cf6;padding-top:10px}
 .engine-badge::after{content:' · Turbo Hybrid v17'}
 
-/* v1.0.3 full-screen record preview */
+/* v1.0.5 full-screen record preview */
 .preview-button{background:#7c3aed;color:#fff}
 .records-preview-modal{position:fixed;inset:0;z-index:1300;background:rgba(15,23,42,.78);display:flex;align-items:stretch;justify-content:center;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
 .records-preview-sheet{width:min(100%,760px);height:100%;background:#f8fafc;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}

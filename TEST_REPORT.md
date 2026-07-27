@@ -1,4 +1,4 @@
-# v1.0.3 테스트 결과
+# v1.0.5 테스트 결과
 
 - JavaScript 문법 검사: PASS
 - HTML ID 중복 검사: PASS
@@ -11,7 +11,7 @@
 - UPS/M12 유니트 2단계 선택: PASS
 - 기존 V13 저장 데이터 키 호환: PASS
 - 작업유형 포함 XLSX: PASS
-- 서비스 워커 v1.0.3 캐시: PASS
+- 서비스 워커 v1.0.5 캐시: PASS
 - 로컬 HTTP 응답: PASS
 - ZIP CRC 무결성: PASS
 
@@ -20,6 +20,9 @@
 - XLSX 한글 파일명 규칙: PASS
 - 신규 증설 XLSX 전용 열 구성: PASS
 - 재배치 XLSX 전용 열 구성: PASS
+- 신규 증설 15열 첨부 양식 및 미입력 5열 공란 유지: PASS
+- 재배치 4개 병합 그룹·15열 및 미입력 4열 공란 유지: PASS
+- XLSX 헤더 색상·바코드 노란색 열·테두리 적용: PASS
 - 네이티브·ZXing 고속 병렬 경로: PASS
 - 고속 실패 후 2영역 정밀 보강 경로: PASS
 - 동일 프레임 중복 후보 배제: PASS
@@ -30,8 +33,9 @@
 - 카메라 시작 시 연속 자동초점 요청: PASS
 - 스캔 중 자동초점 상태 유지 검사: PASS
 - 자동초점 미지원 기기 기본 동작 유지: PASS
-- Android/iPhone 호환 텍스트 공유 데이터 구성: PASS
+- Android/iPhone XLSX 파일+텍스트 결합 공유 데이터 구성: PASS
 - 신규 증설/재배치 공유 내용 분리: PASS
-- 공유 API 미지원·실패 시 클립보드 복사: PASS
+- 파일 결합 공유 미지원 시 텍스트 공유+XLSX 저장: PASS
+- 공유 API 미지원·실패 시 클립보드 복사+XLSX 저장: PASS
 - 단말 현지 날짜 YYYYMMDD 적용: PASS
 - 작업유형별 일자별 순번 분리: PASS

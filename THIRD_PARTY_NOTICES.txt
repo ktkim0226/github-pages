@@ -7,9 +7,9 @@ Core decoder: zxing-cpp
 License: Apache License 2.0
 Runtime CDN paths are pinned to zxing-wasm 3.1.2.
 
-SheetJS Community Edition dependency
+SheetJS Style dependency
 
-Package: xlsx 0.18.5
-Project: SheetJS
+Package: xlsx-js-style 1.2.0
+Project: gitbrent/xlsx-js-style
 License: Apache License 2.0
-Runtime CDN paths are pinned to xlsx 0.18.5.
+Runtime CDN paths are pinned to xlsx-js-style 1.2.0.

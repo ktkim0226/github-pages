@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.3";
+var APP_VERSION="1.0.5";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -697,24 +697,78 @@ function buildXlsxPackage(filterType){
   if(!window.XLSX||!XLSX.utils||typeof XLSX.write!=="function"){toast("XLSX 저장 모듈을 불러오지 못했습니다. 인터넷 연결 후 다시 시도해 주세요.");return null;}
   var relocation=filterType==="재배치";
   var heads=relocation
-    ?["No","재배치 전 국사","재배치 전 링명","재배치 전 슬롯","재배치 전 파장","장비 카테고리","유니트명","유니트바코드","재배치 후 국사","재배치 후 링명","재배치 후 슬롯","재배치 후 파장","비고","등록시각"]
-    :["No","링명","국사명","Rack","Shelf","Slot 바코드","Slot Number","파장","장비 카테고리","유니트명","비고","등록시각"];
-  var rows=[heads];
+    ?["인프라","실적국사","적용망","실장슬롯","파장","모델","(인계지역→인수지역)","바코드","(인계지역→인수지역)","인프라","실적국사","적용망","실장슬롯","파장 (CH)","구축일시"]
+    :["링명","실적국사","인프라","공사번호","국사바코드","TID","랙 바코드","쉘프 바코드","실장슬롯","파장","실장 품목","부속바코드번호","구축일시","작업자","비고"];
+  var rows=relocation
+    ?[["재배치 전 사용 내역","","","","","","LG CNS 실적 자산인계 내역","","LG U+ 원 요청내역","재배치 후 사용 내역","","","","",""],heads]
+    :[heads];
   exportRecords.forEach(function(r,i){
     rows.push(relocation
-      ?[i+1,r.beforeOffice||"",r.beforeRing||"",r.beforeSlot||"",r.beforeWavelength||"",r.unitCategory||"",r.unitName||"",r.unitBarcode||"",r.afterOffice||"",r.afterRing||"",r.afterSlot||"",r.afterWavelength||"",r.memo||"",r.createdAt||""]
-      :[i+1,r.ring||"",r.office||"",r.rack||"",r.shelf||"",r.slot||"",r.slotNumber||"",r.wavelength||"",r.unitCategory||"",r.unitName||"",r.memo||"",r.createdAt||""]);
+      ?[
+        "",r.beforeOffice||"",r.beforeRing||"",r.beforeSlot||"",r.beforeWavelength||"",r.unitName||"",
+        "",r.unitBarcode||"","",
+        "",r.afterOffice||"",r.afterRing||"",r.afterSlot||"",r.afterWavelength||"",r.createdAt||""
+      ]
+      :[
+        r.ring||"",r.office||"",
+        "","","","",
+        r.rack||"",r.shelf||"",r.slotNumber||"",r.wavelength||"",r.unitName||"",r.slot||"",
+        r.createdAt||"","",r.memo||""
+      ]);
   });
   var sheet=XLSX.utils.aoa_to_sheet(rows);
-  sheet["!cols"]=heads.map(function(head,index){
-    var max=String(head).length;
-    rows.slice(1).forEach(function(row){max=Math.max(max,String(row[index]==null?"":row[index]).length);});
-    return {wch:Math.min(Math.max(max+2,10),36)};
-  });
-  sheet["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:rows.length-1,c:heads.length-1}})};
+  sheet["!cols"]=(relocation
+    ?[12,16,24,12,12,16,24,22,24,12,16,24,12,13,18]
+    :[18,16,12,14,16,18,18,18,12,10,28,20,18,12,28]).map(function(width){return {wch:width};});
+  sheet["!rows"]=relocation?[{hpt:24},{hpt:30}]:[{hpt:30}];
+  if(relocation){
+    sheet["!merges"]=[
+      XLSX.utils.decode_range("A1:F1"),
+      XLSX.utils.decode_range("G1:H1"),
+      XLSX.utils.decode_range("J1:O1")
+    ];
+  }
+  var headerRow=relocation?1:0;
+  sheet["!autofilter"]={ref:XLSX.utils.encode_range({s:{r:headerRow,c:0},e:{r:rows.length-1,c:heads.length-1}})};
+  var thin={style:"thin",color:{rgb:"404040"}};
+  var baseStyle={
+    font:{name:"맑은 고딕",sz:10},
+    alignment:{horizontal:"center",vertical:"center",wrapText:true},
+    border:{top:thin,bottom:thin,left:thin,right:thin}
+  };
+  var palette={
+    grey:"D9E1F2",yellow:"FFFF00",
+    blueHeader:"9DC3E6",blueBody:"DDEBF7",
+    pinkHeader:"E6B8B7",pinkBody:"FCE4D6",white:"FFFFFF"
+  };
+  function styled(fill,bold){
+    return {
+      font:{name:"맑은 고딕",sz:10,bold:!!bold},
+      alignment:baseStyle.alignment,
+      border:baseStyle.border,
+      fill:{patternType:"solid",fgColor:{rgb:fill}}
+    };
+  }
+  for(var rowIndex=0;rowIndex<rows.length;rowIndex++){
+    for(var columnIndex=0;columnIndex<heads.length;columnIndex++){
+      var address=XLSX.utils.encode_cell({r:rowIndex,c:columnIndex});
+      if(!sheet[address])sheet[address]={t:"s",v:""};
+      if(!relocation){
+        sheet[address].s=styled(columnIndex===11?palette.yellow:palette.grey,rowIndex===0);
+        if(rowIndex>0&&columnIndex!==11)sheet[address].s=Object.assign({},baseStyle);
+      }else{
+        var isHeader=rowIndex<2;
+        var fill=columnIndex<=5?(isHeader?palette.blueHeader:palette.blueBody)
+          :columnIndex===7&&rowIndex>1?palette.yellow
+          :columnIndex>=9?(isHeader?palette.pinkHeader:palette.pinkBody)
+          :palette.white;
+        sheet[address].s=styled(fill,isHeader);
+      }
+    }
+  }
   var workbook=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook,sheet,relocation?"재배치":"신규증설");
-  var content=XLSX.write(workbook,{bookType:"xlsx",type:"array",compression:true});
+  var content=XLSX.write(workbook,{bookType:"xlsx",type:"array",compression:true,cellStyles:true});
   var fileType=filterType==="재배치"?"재배치":"신규증설";
   var now=new Date();
   var dateText=String(now.getFullYear())+String(now.getMonth()+1).padStart(2,"0")+String(now.getDate()).padStart(2,"0");
@@ -783,19 +837,39 @@ async function copyShareText(content){
 async function shareRecordText(filterType){
   var content=buildShareText(filterType);if(!content)return;
   var title=(filterType==="재배치"?"재배치":"신규 증설")+" 자산바코드";
+  var pkg=buildXlsxPackage(filterType);
+  var mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",file=null;
+  if(pkg){
+    try{file=new File([pkg.content],pkg.fileName,{type:mime});}
+    catch(e){console.warn("XLSX share file unavailable",e);}
+  }
   if(!navigator.share){
     var copied=await copyShareText(content);
-    toast(copied?"내용을 복사했습니다. 카카오톡 대화창에 붙여넣어 주세요.":"이 브라우저에서는 공유할 수 없습니다.");
+    if(pkg){download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);}
+    toast(copied?"내용을 복사하고 XLSX를 저장했습니다. 카카오톡에 붙여넣어 주세요.":"XLSX를 저장했지만 이 브라우저에서는 내용 공유를 지원하지 않습니다.");
     return;
+  }
+  if(file&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+    try{
+      await navigator.share({title:title,text:content,files:[file]});
+      commitXlsxSequence(pkg);
+      toast("카카오톡으로 XLSX 파일과 저장 내용을 함께 전달했습니다.");
+      return;
+    }catch(fileShareError){
+      if(fileShareError&&fileShareError.name==="AbortError")return;
+      console.warn("combined file and text share unavailable",fileShareError);
+    }
   }
   try{
     await navigator.share({title:title,text:content});
-    toast("카카오톡으로 저장 내용을 전달했습니다.");
+    if(pkg){download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);}
+    toast(pkg?"파일 결합 공유가 제한되어 내용은 공유하고 XLSX는 저장했습니다.":"카카오톡으로 저장 내용을 전달했습니다.");
   }catch(err){
     if(err&&err.name==="AbortError")return;
     console.error(err);
     var copied=await copyShareText(content);
-    toast(copied?"공유가 제한되어 내용을 복사했습니다. 카카오톡에 붙여넣어 주세요.":"카카오톡 공유를 실행하지 못했습니다.");
+    if(pkg){download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);}
+    toast(copied?"공유가 제한되어 내용을 복사하고 XLSX를 저장했습니다. 카카오톡에 붙여넣어 주세요.":"카카오톡 공유를 실행하지 못해 XLSX만 저장했습니다.");
   }
 }
 
