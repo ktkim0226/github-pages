@@ -1,10 +1,10 @@
 {
-  "app_version_1_0_2": true,
+  "app_version_1_0_3": true,
   "new_filename_rule": true,
   "relocation_filename_rule": true,
   "local_date": true,
   "daily_sequence": true,
   "xlsx_extension": true,
   "version_json": true,
-  "sw_cache_v1_0_2": true
+  "sw_cache_v1_0_3": true
 }

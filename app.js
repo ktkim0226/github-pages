@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.2";
+var APP_VERSION="1.0.3";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -728,27 +728,74 @@ function exportXLSX(filterType){
   download(pkg.fileName,pkg.content,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   commitXlsxSequence(pkg);
 }
-async function shareXLSX(filterType){
-  var pkg=buildXlsxPackage(filterType);if(!pkg)return;
-  var file;
-  var mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  try{file=new File([pkg.content],pkg.fileName,{type:mime});}
-  catch(err){toast("이 브라우저는 파일 공유를 지원하지 않아 XLSX로 저장합니다.");download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);return;}
-  if(!navigator.share){toast("공유 기능을 지원하지 않아 XLSX로 저장합니다.");download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);return;}
-  var shareData={title:pkg.fileType+" 자산바코드",text:pkg.fileType+" 자산바코드 XLSX 파일입니다.",files:[file]};
-  if(navigator.canShare&&!navigator.canShare({files:[file]})){
-    toast("이 브라우저는 XLSX 파일 공유를 지원하지 않아 파일로 저장합니다.");
-    download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);return;
+function shareValue(value){return clean(value)||"-";}
+function buildShareText(filterType){
+  var relocation=filterType==="재배치";
+  var records=state.records.filter(function(r){return (r.workType||"신규 증설")===(relocation?"재배치":"신규 증설");});
+  if(!records.length){toast("선택한 작업유형에 공유할 데이터가 없습니다.");return "";}
+  var lines=["["+(relocation?"재배치":"신규 증설")+" 자산바코드]","총 "+records.length+"건"];
+  records.forEach(function(r,i){
+    lines.push("","No. "+(i+1));
+    if(relocation){
+      lines.push(
+        "재배치 전 국사: "+shareValue(r.beforeOffice),
+        "재배치 전 링명: "+shareValue(r.beforeRing),
+        "재배치 전 슬롯: "+shareValue(r.beforeSlot),
+        "재배치 전 파장: "+shareValue(r.beforeWavelength),
+        "장비 카테고리: "+shareValue(r.unitCategory),
+        "유니트명: "+shareValue(r.unitName),
+        "유니트바코드: "+shareValue(r.unitBarcode),
+        "재배치 후 국사: "+shareValue(r.afterOffice),
+        "재배치 후 링명: "+shareValue(r.afterRing),
+        "재배치 후 슬롯: "+shareValue(r.afterSlot),
+        "재배치 후 파장: "+shareValue(r.afterWavelength),
+        "비고: "+shareValue(r.memo),
+        "등록시각: "+shareValue(r.createdAt)
+      );
+    }else{
+      lines.push(
+        "링명: "+shareValue(r.ring),
+        "국사명: "+shareValue(r.office),
+        "Rack: "+shareValue(r.rack),
+        "Shelf: "+shareValue(r.shelf),
+        "Slot 바코드: "+shareValue(r.slot),
+        "Slot Number: "+shareValue(r.slotNumber),
+        "파장: "+shareValue(r.wavelength),
+        "장비 카테고리: "+shareValue(r.unitCategory),
+        "유니트명: "+shareValue(r.unitName),
+        "비고: "+shareValue(r.memo),
+        "등록시각: "+shareValue(r.createdAt)
+      );
+    }
+  });
+  return lines.join("\n");
+}
+async function copyShareText(content){
+  try{
+    if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(content);return true;}
+  }catch(e){console.warn("clipboard API unavailable",e);}
+  try{
+    var area=document.createElement("textarea");area.value=content;area.setAttribute("readonly","");area.style.position="fixed";area.style.opacity="0";
+    document.body.appendChild(area);area.select();area.setSelectionRange(0,area.value.length);
+    var copied=document.execCommand&&document.execCommand("copy");area.remove();return !!copied;
+  }catch(err){console.warn("clipboard fallback unavailable",err);return false;}
+}
+async function shareRecordText(filterType){
+  var content=buildShareText(filterType);if(!content)return;
+  var title=(filterType==="재배치"?"재배치":"신규 증설")+" 자산바코드";
+  if(!navigator.share){
+    var copied=await copyShareText(content);
+    toast(copied?"내용을 복사했습니다. 카카오톡 대화창에 붙여넣어 주세요.":"이 브라우저에서는 공유할 수 없습니다.");
+    return;
   }
   try{
-    await navigator.share(shareData);
-    commitXlsxSequence(pkg);
-    toast("공유 화면에서 카카오톡을 선택해 전송할 수 있습니다.");
+    await navigator.share({title:title,text:content});
+    toast("카카오톡으로 저장 내용을 전달했습니다.");
   }catch(err){
     if(err&&err.name==="AbortError")return;
     console.error(err);
-    toast("공유하지 못했습니다. XLSX 파일로 저장합니다.");
-    download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);
+    var copied=await copyShareText(content);
+    toast(copied?"공유가 제한되어 내용을 복사했습니다. 카카오톡에 붙여넣어 주세요.":"카카오톡 공유를 실행하지 못했습니다.");
   }
 }
 
@@ -837,11 +884,11 @@ $("closeRecordsPreviewBtn").addEventListener("click",closeRecordsPreview);
 $("previewBackBtn").addEventListener("click",closeRecordsPreview);
 $("recordsPreviewModal").addEventListener("click",function(e){if(e.target===$("recordsPreviewModal"))closeRecordsPreview();});
 $("previewCsvBtn").addEventListener("click",function(){exportXLSX(previewFilterType);});
-$("previewShareBtn").addEventListener("click",function(){shareXLSX(previewFilterType);});
+$("previewShareBtn").addEventListener("click",function(){shareRecordText(previewFilterType);});
 $("newCsvBtn").addEventListener("click",function(){exportXLSX("신규 증설");});
-$("newShareBtn").addEventListener("click",function(){shareXLSX("신규 증설");});
+$("newShareBtn").addEventListener("click",function(){shareRecordText("신규 증설");});
 $("relocationCsvBtn").addEventListener("click",function(){exportXLSX("재배치");});
-$("relocationShareBtn").addEventListener("click",function(){shareXLSX("재배치");});
+$("relocationShareBtn").addEventListener("click",function(){shareRecordText("재배치");});
 
 function environmentCheck(){
   var okSecure=location.protocol==="https:"||location.hostname==="localhost";

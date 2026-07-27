@@ -1,7 +1,7 @@
 {
   "checks": {
-    "app_version_1_0_2": true,
-    "cache_v1_0_2": true,
+    "app_version_1_0_3": true,
+    "cache_v1_0_3": true,
     "no_missing_dom_ids": true,
     "no_duplicate_ids": true,
     "large_reader_css": true,
