@@ -1,4 +1,4 @@
-# v1.0.1 테스트 결과
+# v1.0.2 테스트 결과
 
 - JavaScript 문법 검사: PASS
 - HTML ID 중복 검사: PASS
@@ -11,7 +11,7 @@
 - UPS/M12 유니트 2단계 선택: PASS
 - 기존 V13 저장 데이터 키 호환: PASS
 - 작업유형 포함 XLSX: PASS
-- 서비스 워커 v1.0.1 캐시: PASS
+- 서비스 워커 v1.0.2 캐시: PASS
 - 로컬 HTTP 응답: PASS
 - ZIP CRC 무결성: PASS
 
@@ -27,5 +27,8 @@
 - QR 테스트 이미지 판독: PASS
 - EAN-13 테스트 이미지 판독: PASS
 - Code128 테스트 이미지 판독: PASS
+- 카메라 시작 시 연속 자동초점 요청: PASS
+- 스캔 중 자동초점 상태 유지 검사: PASS
+- 자동초점 미지원 기기 기본 동작 유지: PASS
 - 단말 현지 날짜 YYYYMMDD 적용: PASS
 - 작업유형별 일자별 순번 분리: PASS

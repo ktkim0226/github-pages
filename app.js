@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.1";
+var APP_VERSION="1.0.2";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -31,7 +31,7 @@ var state={
   zxingReadyPromise:null, nativeDetector:null, nativeDetectors:{}, detectorFormats:[], decodeAttempts:0, decodeErrors:0, lastDecodeError:"",
   regionIndex:0, variantIndex:0,
   videoDevices:[], selectedCameraId:"", candidateVotes:{}, candidateWindowMs:1800, requiredVotes:2,
-  quality:{brightness:0,sharpness:0,lastChecked:0}, qualityCanvas:null, focusPending:false,
+  quality:{brightness:0,sharpness:0,lastChecked:0}, qualityCanvas:null, focusPending:false, autoFocusTimer:0, autoFocusSupported:false,
   performanceProfile:"balanced", scanStartedAt:0, fastMissSince:0, decodeTimes:[], lastFrameSignature:null, lastFrameSignatureAt:0, nativeHit:null, zxingHit:null, autoCanvases:{}, preciseCopyCanvas:null
 };
 
@@ -626,14 +626,41 @@ function populateCameraSelect(devices,selectedId){
 async function requestFocus(){
   var info=state.cameraCapabilities;if(!info||!info.track)return false;var caps=info.caps||{};
   try{
-    var advanced=[];
-    if(caps.focusMode&&Array.isArray(caps.focusMode)){if(caps.focusMode.indexOf("continuous")>=0)advanced.push({focusMode:"continuous"});else if(caps.focusMode.indexOf("single-shot")>=0)advanced.push({focusMode:"single-shot"});}
-    if(caps.exposureMode&&Array.isArray(caps.exposureMode)&&caps.exposureMode.indexOf("continuous")>=0)advanced.push({exposureMode:"continuous"});
-    if(caps.whiteBalanceMode&&Array.isArray(caps.whiteBalanceMode)&&caps.whiteBalanceMode.indexOf("continuous")>=0)advanced.push({whiteBalanceMode:"continuous"});
-    if(advanced.length)await info.track.applyConstraints({advanced:advanced});
+    var modes=Array.isArray(caps.focusMode)?caps.focusMode:[];
+    var focusMode=modes.indexOf("continuous")>=0?"continuous":(modes.indexOf("single-shot")>=0?"single-shot":"");
+    if(!focusMode)return false;
+    await info.track.applyConstraints({advanced:[{focusMode:focusMode}]});
     state.focusPending=true;text("qualityStatus","초점을 빠르게 맞추는 중입니다. 잠시 고정하세요.");$("qualityStatus").className="quality-status warn";
-    setTimeout(function(){state.focusPending=false;},250);return advanced.length>0;
+    setTimeout(function(){state.focusPending=false;},250);return true;
   }catch(e){console.warn("focus unsupported",e);return false;}
+}
+function clearAutoFocusMonitor(){
+  if(state.autoFocusTimer)clearInterval(state.autoFocusTimer);
+  state.autoFocusTimer=0;state.autoFocusSupported=false;state.focusPending=false;
+}
+async function maintainContinuousFocus(force){
+  var info=state.cameraCapabilities;if(!info||!info.track||info.track.readyState==="ended")return false;
+  var caps=info.caps||{},settings=info.track.getSettings?info.track.getSettings():{},focusModes=Array.isArray(caps.focusMode)?caps.focusMode:[],advanced={};
+  if(focusModes.indexOf("continuous")>=0){
+    if(force||settings.focusMode!=="continuous")advanced.focusMode="continuous";
+    state.autoFocusSupported=true;
+  }else state.autoFocusSupported=false;
+  if(Array.isArray(caps.exposureMode)&&caps.exposureMode.indexOf("continuous")>=0&&(force||settings.exposureMode!=="continuous"))advanced.exposureMode="continuous";
+  if(Array.isArray(caps.whiteBalanceMode)&&caps.whiteBalanceMode.indexOf("continuous")>=0&&(force||settings.whiteBalanceMode!=="continuous"))advanced.whiteBalanceMode="continuous";
+  if(Object.keys(advanced).length){
+    try{await info.track.applyConstraints({advanced:[advanced]});}
+    catch(e){console.warn("continuous camera control unsupported",e);return false;}
+  }
+  return state.autoFocusSupported;
+}
+async function startAutoFocusMonitor(){
+  clearAutoFocusMonitor();
+  var supported=await maintainContinuousFocus(true);
+  text("qualityStatus",supported?"연속 자동초점 활성 · 코드를 중앙에 맞춰 주세요.":"기기 기본 자동초점 활성 · 코드를 중앙에 맞춰 주세요.");
+  $("qualityStatus").className="quality-status good";
+  state.autoFocusTimer=setInterval(function(){
+    if(state.scanning)maintainContinuousFocus(false);
+  },2000);
 }
 async function startScanner(){
   if(state.scanning)return;
@@ -643,15 +670,15 @@ async function startScanner(){
     if(!state.videoDevices.length){var permission=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});permission.getTracks().forEach(function(t){t.stop();});}
     var devices=await navigator.mediaDevices.enumerateDevices();populateCameraSelect(devices,state.selectedCameraId);
     var chosen=state.selectedCameraId?state.videoDevices.find(function(d){return d.deviceId===state.selectedCameraId;}):chooseRearCamera(devices);
-    var constraints={audio:false,video:{deviceId:chosen?{exact:chosen.deviceId}:undefined,facingMode:chosen?undefined:{ideal:"environment"},width:{ideal:1920,min:1280},height:{ideal:1080,min:720},frameRate:{ideal:30,min:24}}};
+    var constraints={audio:false,video:{deviceId:chosen?{exact:chosen.deviceId}:undefined,facingMode:chosen?undefined:{ideal:"environment"},width:{ideal:1920,min:1280},height:{ideal:1080,min:720},frameRate:{ideal:30,min:24},advanced:[{focusMode:"continuous",exposureMode:"continuous",whiteBalanceMode:"continuous"}]}};
     state.stream=await navigator.mediaDevices.getUserMedia(constraints);var video=$("scannerVideo");video.srcObject=state.stream;await video.play();
     state.scanning=true;state.scanLocked=false;state.decodeBusy=false;state.frameIndex=0;state.decodeAttempts=0;state.decodeErrors=0;state.regionIndex=0;state.variantIndex=0;state.lastDecodeError="";state.scanStartedAt=performance.now();state.fastMissSince=state.scanStartedAt;state.decodeTimes=[];state.lastFrameSignature=null;state.nativeHit=null;state.zxingHit=null;
-    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 다중 프레임 검증 활성","ready");setupCameraControls();await requestFocus();scanningLoop();
+    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 자동초점·다중 프레임 검증 활성","ready");setupCameraControls();await startAutoFocusMonitor();scanningLoop();
   }catch(err){console.error(err);state.scanning=false;setScannerStatus("카메라 또는 WASM 엔진을 실행하지 못했습니다: "+(err.message||err),"error");}
 }
 function stopScanner(closeModal){
   if(state.animationId)cancelAnimationFrame(state.animationId);
-  state.animationId=0;state.scanning=false;state.decodeBusy=false;state.scanLocked=false;resetCandidates();
+  clearAutoFocusMonitor();state.animationId=0;state.scanning=false;state.decodeBusy=false;state.scanLocked=false;resetCandidates();
   if(state.stream){state.stream.getTracks().forEach(function(t){t.stop();});state.stream=null;}
   var video=$("scannerVideo");if(video)video.srcObject=null;
   hide("torchBtn");hide("zoomWrap");
