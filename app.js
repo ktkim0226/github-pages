@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.5";
+var APP_VERSION="1.0.6";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -697,8 +697,8 @@ function buildXlsxPackage(filterType){
   if(!window.XLSX||!XLSX.utils||typeof XLSX.write!=="function"){toast("XLSX 저장 모듈을 불러오지 못했습니다. 인터넷 연결 후 다시 시도해 주세요.");return null;}
   var relocation=filterType==="재배치";
   var heads=relocation
-    ?["인프라","실적국사","적용망","실장슬롯","파장","모델","(인계지역→인수지역)","바코드","(인계지역→인수지역)","인프라","실적국사","적용망","실장슬롯","파장 (CH)","구축일시"]
-    :["링명","실적국사","인프라","공사번호","국사바코드","TID","랙 바코드","쉘프 바코드","실장슬롯","파장","실장 품목","부속바코드번호","구축일시","작업자","비고"];
+    ?["인프라","설치국사","적용망","실장슬롯","파장","모듈","(인계지역→인수지역)","바코드","(인계지역→인수지역)","인프라","설치국사","적용망","실장슬롯","파장 (CH)","구축일시"]
+    :["링명","설치국사","인프라","공사번호","국사바코드","TID","랙 바코드","셀프 바코드","실장슬롯","파장","실장 품목","부속바코드번호","구축일시","작업자","비고"];
   var rows=relocation
     ?[["재배치 전 사용 내역","","","","","","LG CNS 실적 자산인계 내역","","LG U+ 원 요청내역","재배치 후 사용 내역","","","","",""],heads]
     :[heads];

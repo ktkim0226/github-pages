@@ -1,7 +1,7 @@
 {
   "checks": {
-    "app_version_1_0_5": true,
-    "cache_v1_0_5": true,
+    "app_version_1_0_6": true,
+    "cache_v1_0_6": true,
     "no_missing_dom_ids": true,
     "no_duplicate_ids": true,
     "large_reader_css": true,
@@ -12,7 +12,8 @@
     "four_scan_modes": true,
     "new_installation_15_columns": true,
     "relocation_grouped_15_columns": true,
-    "xlsx_template_styles": true
+    "xlsx_template_styles": true,
+    "xlsx_header_labels_v1_0_6": true
   },
   "scan_mode_count": 4,
   "missing_dom_ids": [],
