@@ -1,7 +1,7 @@
 {
   "checks": {
-    "app_version_1_0_7": true,
-    "cache_v1_0_7": true,
+    "app_version_1_0_8": true,
+    "cache_v1_0_8": true,
     "no_missing_dom_ids": true,
     "no_duplicate_ids": true,
     "large_reader_css": true,
@@ -16,7 +16,9 @@
     "xlsx_header_labels_v1_0_6": true,
     "android_default_rear_camera": true,
     "android_focus_pulse": true,
-    "independent_camera_constraints": true
+    "independent_camera_constraints": true,
+    "android_camera_capability_probe": true,
+    "android_autofocus_lens_priority": true
   },
   "scan_mode_count": 4,
   "missing_dom_ids": [],

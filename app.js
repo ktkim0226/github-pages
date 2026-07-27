@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.7";
+var APP_VERSION="1.0.8";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -30,7 +30,7 @@ var state={
   scanLocked:false, lastDecodedValue:"", lastDecodedAt:0,
   zxingReadyPromise:null, nativeDetector:null, nativeDetectors:{}, detectorFormats:[], decodeAttempts:0, decodeErrors:0, lastDecodeError:"",
   regionIndex:0, variantIndex:0,
-  videoDevices:[], selectedCameraId:"", candidateVotes:{}, candidateWindowMs:1800, requiredVotes:2,
+  videoDevices:[], selectedCameraId:"", autoSelectedCameraId:"", candidateVotes:{}, candidateWindowMs:1800, requiredVotes:2,
   quality:{brightness:0,sharpness:0,lastChecked:0}, qualityCanvas:null, focusPending:false, autoFocusTimer:0, autoFocusSupported:false,
   performanceProfile:"balanced", scanStartedAt:0, fastMissSince:0, decodeTimes:[], lastFrameSignature:null, lastFrameSignatureAt:0, nativeHit:null, zxingHit:null, autoCanvases:{}, preciseCopyCanvas:null
 };
@@ -621,6 +621,63 @@ function chooseRearCamera(devices){
   if(!rear)rear=videos.find(function(d){return /back|rear|environment|후면|후방/i.test(d.label||"");});
   return rear||videos[videos.length-1]||null;
 }
+function cameraLabelScore(label){
+  var value=String(label||"");
+  var score=0;
+  if(/back|rear|environment|후면|후방/i.test(value))score+=80;
+  if(/front|user|전면|셀피/i.test(value))score-=1000;
+  if(/main|primary|기본|주 카메라/i.test(value))score+=45;
+  if(/ultra|macro|tele|depth|wide angle|초광각|망원|접사|심도/i.test(value))score-=80;
+  return score;
+}
+async function inspectRearCamera(device){
+  var stream=null;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{deviceId:{exact:device.deviceId},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}}
+    });
+    var track=stream.getVideoTracks()[0];
+    if(!track)return null;
+    var caps=track.getCapabilities?track.getCapabilities():{};
+    var settings=track.getSettings?track.getSettings():{};
+    var modes=Array.isArray(caps.focusMode)?caps.focusMode:[];
+    var score=cameraLabelScore(device.label);
+    if(settings.facingMode==="environment")score+=120;
+    if(settings.facingMode==="user")score-=1000;
+    if(modes.indexOf("continuous")>=0)score+=260;
+    if(modes.indexOf("single-shot")>=0)score+=100;
+    if(caps.focusDistance&&Number(caps.focusDistance.max)>Number(caps.focusDistance.min))score+=70;
+    if(caps.torch===true||Array.isArray(caps.torch)&&caps.torch.indexOf(true)>=0)score+=35;
+    if(caps.zoom&&Number(caps.zoom.max)>1)score+=Math.min(35,Math.round(Number(caps.zoom.max)*3));
+    return {device:device,score:score,focusModes:modes};
+  }catch(e){
+    console.warn("camera probe failed",device.label||device.deviceId,e);
+    return null;
+  }finally{
+    if(stream)stream.getTracks().forEach(function(track){track.stop();});
+  }
+}
+async function selectBestRearCamera(devices){
+  var videos=devices.filter(function(d){return d.kind==="videoinput";});
+  if(!isAndroidDevice()||videos.length<2)return null;
+  var cached=videos.find(function(d){return d.deviceId===state.autoSelectedCameraId;});
+  if(cached)return cached;
+  var candidates=videos.filter(function(d){return !/front|user|전면|셀피/i.test(d.label||"");});
+  if(!candidates.length)candidates=videos;
+  setScannerStatus("자동초점이 지원되는 기본 후면 카메라를 찾고 있습니다.");
+  var best=null;
+  for(var i=0;i<candidates.length;i++){
+    var result=await inspectRearCamera(candidates[i]);
+    if(result&&(!best||result.score>best.score))best=result;
+  }
+  if(best&&best.score>-500){
+    state.autoSelectedCameraId=best.device.deviceId;
+    console.info("auto rear camera selected",best.device.label||best.device.deviceId,best.focusModes,best.score);
+    return best.device;
+  }
+  return chooseRearCamera(devices);
+}
 function populateCameraSelect(devices,selectedId){
   state.videoDevices=devices.filter(function(d){return d.kind==="videoinput";});var sel=$("cameraSelect");sel.innerHTML="";
   var auto=document.createElement("option");auto.value="";auto.textContent="후면 카메라 자동 선택";sel.appendChild(auto);
@@ -687,12 +744,21 @@ async function startScanner(){
     await ensureScannerLibrary();if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error("카메라 API 미지원");
     if(!state.videoDevices.length){var permission=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});permission.getTracks().forEach(function(t){t.stop();});}
     var devices=await navigator.mediaDevices.enumerateDevices();populateCameraSelect(devices,state.selectedCameraId);
-    var chosen=state.selectedCameraId?state.videoDevices.find(function(d){return d.deviceId===state.selectedCameraId;}):null;
+    var chosen=state.selectedCameraId
+      ?state.videoDevices.find(function(d){return d.deviceId===state.selectedCameraId;})
+      :await selectBestRearCamera(devices);
     var videoConstraints=chosen
       ?{deviceId:{exact:chosen.deviceId},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}}
       :{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}};
     var constraints={audio:false,video:videoConstraints};
-    state.stream=await navigator.mediaDevices.getUserMedia(constraints);var video=$("scannerVideo");video.srcObject=state.stream;await video.play();
+    try{
+      state.stream=await navigator.mediaDevices.getUserMedia(constraints);
+    }catch(cameraError){
+      if(state.selectedCameraId||!chosen)throw cameraError;
+      state.autoSelectedCameraId="";
+      state.stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}}});
+    }
+    var video=$("scannerVideo");video.srcObject=state.stream;await video.play();
     state.scanning=true;state.scanLocked=false;state.decodeBusy=false;state.frameIndex=0;state.decodeAttempts=0;state.decodeErrors=0;state.regionIndex=0;state.variantIndex=0;state.lastDecodeError="";state.scanStartedAt=performance.now();state.fastMissSince=state.scanStartedAt;state.decodeTimes=[];state.lastFrameSignature=null;state.nativeHit=null;state.zxingHit=null;
     setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 자동초점·다중 프레임 검증 활성","ready");setupCameraControls();await startAutoFocusMonitor();scanningLoop();
   }catch(err){console.error(err);state.scanning=false;setScannerStatus("카메라 또는 WASM 엔진을 실행하지 못했습니다: "+(err.message||err),"error");}
@@ -933,7 +999,11 @@ document.querySelectorAll(".scan-mode").forEach(function(btn){
   });
 });
 $("performanceProfile").addEventListener("change",function(){state.performanceProfile=this.value;resetCandidates();state.scanStartedAt=performance.now();state.fastMissSince=state.scanStartedAt;state.decodeTimes=[];text("performanceStatus","프로필 변경 적용 중");});
-$("cameraSelect").addEventListener("change",function(){state.selectedCameraId=this.value;stopScanner(false).then(startScanner);});
+$("cameraSelect").addEventListener("change",function(){
+  state.selectedCameraId=this.value;
+  if(!state.selectedCameraId)state.autoSelectedCameraId="";
+  stopScanner(false).then(startScanner);
+});
 $("focusBtn").addEventListener("click",function(){requestFocus().then(function(ok){toast(ok?"초점을 다시 맞춥니다.":"이 단말은 웹 초점 제어를 지원하지 않습니다.");});});
 document.querySelectorAll("#quickZoom button").forEach(function(btn){btn.addEventListener("click",function(){
   if(!state.cameraCapabilities||!state.cameraCapabilities.track)return;var caps=state.cameraCapabilities.caps.zoom||{},v=Math.max(caps.min||1,Math.min(caps.max||1,Number(btn.dataset.zoom)));

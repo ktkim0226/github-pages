@@ -1,14 +1,16 @@
 {
-  "app_version_1_0_7": true,
+  "app_version_1_0_8": true,
   "new_filename_rule": true,
   "relocation_filename_rule": true,
   "local_date": true,
   "daily_sequence": true,
   "xlsx_extension": true,
   "version_json": true,
-  "sw_cache_v1_0_7": true,
+  "sw_cache_v1_0_8": true,
   "new_installation_15_columns": true,
   "relocation_grouped_15_columns": true,
   "android_default_rear_camera": true,
-  "android_focus_pulse": true
+  "android_focus_pulse": true,
+  "android_camera_capability_probe": true,
+  "android_autofocus_lens_priority": true
 }
