@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="자산바코드 스캐너">
-  <title>자산바코드 스캐너 v1.0.14</title>
+  <title>자산바코드 스캐너 v1.0.15</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.0.14">
+  <link rel="stylesheet" href="./styles.css?v=1.0.15">
 </head>
 <body>
 <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
@@ -22,7 +22,7 @@
 <header>
   <div>
     <h1>자산바코드 스캐너</h1>
-    <p>신규 증설 또는 재배치 작업을 선택하여 등록 · v1.0.14</p>
+    <p>신규 증설 또는 재배치 작업을 선택하여 등록 · v1.0.15</p>
   </div>
 </header>
 
@@ -254,8 +254,8 @@
     </div>
 
     <div class="scanner-quick-controls">
-      <button id="focusBtn" class="camera-control compact-control" type="button"><span aria-hidden="true">◎</span><b>초점 맞춤</b></button>
-      <button id="torchBtn" class="camera-control compact-control hidden" type="button"><span aria-hidden="true">✦</span><b>조명</b></button>
+      <button id="focusBtn" class="camera-control compact-control control-active" type="button" aria-pressed="true"><span aria-hidden="true">◎</span><b>자동 초점 ON</b></button>
+      <button id="torchBtn" class="camera-control compact-control hidden" type="button" aria-pressed="false"><span aria-hidden="true">✦</span><b>조명 켜기</b></button>
       <div id="quickZoom" class="quick-zoom compact-zoom hidden">
         <button type="button" data-zoom="1">1×</button>
         <button type="button" data-zoom="2">2×</button>
@@ -301,6 +301,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"
   crossorigin="anonymous"
   onerror="this.onerror=null;this.src='https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';"></script>
-<script src="./app.js?v=1.0.14"></script>
+<script src="./app.js?v=1.0.15"></script>
 </body>
 </html>
