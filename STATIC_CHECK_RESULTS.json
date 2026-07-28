@@ -1,12 +1,12 @@
 {
-  "app_version_1_0_9": true,
+  "app_version_1_0_10": true,
   "new_filename_rule": true,
   "relocation_filename_rule": true,
   "local_date": true,
   "daily_sequence": true,
   "xlsx_extension": true,
   "version_json": true,
-  "sw_cache_v1_0_9": true,
+  "sw_cache_v1_0_10": true,
   "new_installation_15_columns": true,
   "relocation_grouped_15_columns": true,
   "android_default_rear_camera": true,
@@ -15,5 +15,8 @@
   "android_autofocus_lens_priority": true,
   "android_visual_sharpness_probe": true,
   "android_center_point_of_interest": true,
-  "android_blur_refocus_monitor": true
+  "android_blur_refocus_monitor": true,
+  "strict_scan_frame_crop": true,
+  "native_detector_roi_only": true,
+  "small_code_high_resolution": true
 }

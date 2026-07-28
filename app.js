@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.9";
+var APP_VERSION="1.0.10";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -164,6 +164,27 @@ function scanRegion(width,height){
   }
   /* 자동 모드는 넓은 영역을 검사해 QR와 1D를 모두 포착 */
   return {width:Math.floor(width*.94),height:Math.floor(height*.62)};
+}
+function activeScanRect(video){
+  var vw=video.videoWidth,vh=video.videoHeight,frame=$("scanOverlay")&&$("scanOverlay").querySelector(".scan-frame");
+  try{
+    var videoBox=video.getBoundingClientRect(),frameBox=frame&&frame.getBoundingClientRect();
+    if(videoBox.width>0&&videoBox.height>0&&frameBox&&frameBox.width>0&&frameBox.height>0){
+      var coverScale=Math.max(videoBox.width/vw,videoBox.height/vh);
+      var visibleWidth=videoBox.width/coverScale,visibleHeight=videoBox.height/coverScale;
+      var cropX=(vw-visibleWidth)/2,cropY=(vh-visibleHeight)/2;
+      var x=cropX+(frameBox.left-videoBox.left)/coverScale;
+      var y=cropY+(frameBox.top-videoBox.top)/coverScale;
+      var w=frameBox.width/coverScale,h=frameBox.height/coverScale;
+      var inset=Math.max(2,Math.min(w,h)*.015);
+      x+=inset;y+=inset;w-=inset*2;h-=inset*2;
+      x=Math.max(0,Math.min(vw-1,x));y=Math.max(0,Math.min(vh-1,y));
+      w=Math.max(40,Math.min(vw-x,w));h=Math.max(40,Math.min(vh-y,h));
+      return {name:"스캔영역",x:Math.floor(x),y:Math.floor(y),w:Math.floor(w),h:Math.floor(h)};
+    }
+  }catch(e){console.warn("scan frame mapping fallback",e);}
+  var size=scanRegion(vw,vh);
+  return {name:"스캔영역",x:Math.floor((vw-size.width)/2),y:Math.floor((vh-size.height)/2),w:size.width,h:size.height};
 }
 function updateModeUI(){
   document.querySelectorAll(".scan-mode").forEach(function(btn){
@@ -473,29 +494,26 @@ function scanPhotoFile(file){
   .finally(function(){$("photoScanInput").value="";});
 }
 function getRegionRects(video){
-  var vw=video.videoWidth,vh=video.videoHeight;
-  var regions=[{name:"전체",x:0,y:0,w:vw,h:vh}];
+  var base=activeScanRect(video),regions=[base];
   function centered(name,wr,hr){
-    var w=Math.max(80,Math.floor(vw*wr)),h=Math.max(80,Math.floor(vh*hr));
-    regions.push({name:name,x:Math.floor((vw-w)/2),y:Math.floor((vh-h)/2),w:w,h:h});
+    var w=Math.max(80,Math.floor(base.w*wr)),h=Math.max(80,Math.floor(base.h*hr));
+    regions.push({name:name,x:Math.floor(base.x+(base.w-w)/2),y:Math.floor(base.y+(base.h-h)/2),w:w,h:h});
   }
   if(state.scanMode==="barcode"){
-    centered("1D-넓게",0.96,0.38);centered("1D-중앙",0.78,0.24);
+    centered("1D-중앙",0.88,0.78);centered("1D-소형확대",0.62,0.68);
   }else if(state.scanMode==="qr"){
-    centered("2D-넓게",0.82,0.82);centered("2D-중앙",0.56,0.56);
+    centered("2D-중앙",0.78,0.78);centered("2D-소형확대",0.52,0.52);
   }else if(state.scanMode==="small"){
-    centered("소형-넓게",0.58,0.58);centered("소형-중앙",0.34,0.34);centered("소형-가로",0.56,0.24);
+    centered("소형-중앙",0.72,0.72);centered("소형-강화",0.48,0.48);centered("소형-가로",0.78,0.42);
   }else{
-    centered("자동-중앙",0.82,0.68);centered("자동-소형",0.48,0.48);centered("자동-가로",0.90,0.30);
+    centered("자동-중앙",0.82,0.78);centered("자동-소형",0.54,0.58);centered("자동-가로",0.92,0.46);
   }
   return regions;
 }
 function renderRegion(video,rect,variant){
   var canvas=$("scanCanvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
   var maxW=state.scanMode==="small"?2200:1800,maxH=state.scanMode==="small"?1600:1350;
-  var scale=Math.min(maxW/rect.w,maxH/rect.h);
-  if(rect.name==="전체")scale=Math.min(1.35,scale);
-  else scale=Math.max(1,Math.min(state.scanMode==="small"?4.5:2.6,scale));
+  var scale=Math.max(.55,Math.min(state.scanMode==="small"?4.8:3.2,Math.min(maxW/rect.w,maxH/rect.h)));
   var tw=Math.max(240,Math.round(rect.w*scale)),th=Math.max(160,Math.round(rect.h*scale));
   canvas.width=tw;canvas.height=th;ctx.imageSmoothingEnabled=variant===0;ctx.imageSmoothingQuality="high";
   ctx.drawImage(video,rect.x,rect.y,rect.w,rect.h,0,0,tw,th);
@@ -542,24 +560,24 @@ async function decodeWithZXing(imageData,precise){
   return r&&r.text?{text:r.text,format:r.format||r.symbology||"ZXing",symbology:r.symbology,engine:"ZXing-C++"}:null;
 }
 function renderFastRegion(video){
-  var vw=video.videoWidth,vh=video.videoHeight,cfg=profileConfig();
-  var wr=state.scanMode==="barcode"?.92:state.scanMode==="small"?.54:.78;
-  var hr=state.scanMode==="barcode"?.30:state.scanMode==="small"?.46:.62;
-  var rw=Math.floor(vw*wr),rh=Math.floor(vh*hr),rx=Math.floor((vw-rw)/2),ry=Math.floor((vh-rh)/2);
-  var scale=Math.min(1,cfg.maxFastWidth/rw),tw=Math.max(320,Math.floor(rw*scale)),th=Math.max(180,Math.floor(rh*scale));
-  var canvas=$("scanCanvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});canvas.width=tw;canvas.height=th;ctx.drawImage(video,rx,ry,rw,rh,0,0,tw,th);
+  var cfg=profileConfig(),rect=activeScanRect(video),maxWidth=isAndroidDevice()?Math.max(1600,cfg.maxFastWidth):cfg.maxFastWidth;
+  var scale=Math.max(.45,Math.min(state.scanMode==="small"?3.2:2.2,maxWidth/rect.w));
+  var tw=Math.max(480,Math.floor(rect.w*scale)),th=Math.max(240,Math.floor(rect.h*scale));
+  var canvas=$("scanCanvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});canvas.width=tw;canvas.height=th;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";ctx.drawImage(video,rect.x,rect.y,rect.w,rect.h,0,0,tw,th);
   return {canvas:canvas,imageData:ctx.getImageData(0,0,tw,th),label:"고속 중앙/원본"};
 }
 function renderAutoFastRegions(video){
-  var vw=video.videoWidth,vh=video.videoHeight,cfg=profileConfig();
+  var cfg=profileConfig(),base=activeScanRect(video);
   function capture(key,rx,ry,rw,rh,minW,minH){
-    var scale=Math.min(1,cfg.maxFastWidth/rw),tw=Math.max(minW,Math.floor(rw*scale)),th=Math.max(minH,Math.floor(rh*scale));
+    var maxWidth=isAndroidDevice()?Math.max(1600,cfg.maxFastWidth):cfg.maxFastWidth;
+    var scale=Math.max(.45,Math.min(2.8,maxWidth/rw)),tw=Math.max(minW,Math.floor(rw*scale)),th=Math.max(minH,Math.floor(rh*scale));
     var c=state.autoCanvases[key]||(state.autoCanvases[key]=document.createElement("canvas")),x=c.getContext("2d",{willReadFrequently:true});c.width=tw;c.height=th;
-    x.drawImage(video,rx,ry,rw,rh,0,0,tw,th);return x.getImageData(0,0,tw,th);
+    x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";x.drawImage(video,rx,ry,rw,rh,0,0,tw,th);return {canvas:c,imageData:x.getImageData(0,0,tw,th)};
   }
-  var bw=Math.floor(vw*.94),bh=Math.max(150,Math.floor(vh*.28)),bx=Math.floor((vw-bw)/2),by=Math.floor((vh-bh)/2);
-  var qs=Math.floor(Math.min(vw*.70,vh*.66)),qx=Math.floor((vw-qs)/2),qy=Math.floor((vh-qs)/2);
-  return {barcode:capture("barcode",bx,by,bw,bh,360,150),qr:capture("qr",qx,qy,qs,qs,300,300)};
+  var bw=base.w,bh=state.scanMode==="auto"?Math.max(120,Math.floor(base.h*.52)):base.h,bx=base.x,by=Math.floor(base.y+(base.h-bh)/2);
+  var qs=Math.floor(Math.min(base.w,base.h)),qx=Math.floor(base.x+(base.w-qs)/2),qy=Math.floor(base.y+(base.h-qs)/2);
+  var full=capture("full",base.x,base.y,base.w,base.h,480,280);
+  return {full:full,barcode:capture("barcode",bx,by,bw,bh,520,220),qr:capture("qr",qx,qy,qs,qs,420,420)};
 }
 function frameSignature(video){
   var now=performance.now();if(now-state.lastFrameSignatureAt<180)return null;state.lastFrameSignatureAt=now;
@@ -583,13 +601,13 @@ async function decodeFrame(){
     if(state.scanMode==="auto"){
       var autoFrames=renderAutoFastRegions(video);
       fastResults=await Promise.all([
-        decodeWithNative(video),
-        window.ZXingWASM.readBarcodes(autoFrames.barcode,{formats:["Code128","Code39","Code93","ITF","EAN13","EAN8","UPCA","UPCE"],tryHarder:false,tryRotate:false,tryInvert:false,tryDenoise:false,tryDownscale:true,downscaleFactor:1.5,downscaleThreshold:480,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain",eanAddOnSymbol:"Read"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-1D"}:null;}),
-        window.ZXingWASM.readBarcodes(autoFrames.qr,{formats:["QRCode","DataMatrix","MicroQRCode","RMQRCode"],tryHarder:false,tryRotate:true,tryInvert:false,tryDenoise:false,tryDownscale:true,downscaleFactor:1.5,downscaleThreshold:480,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-2D"}:null;})
+        decodeWithNative(autoFrames.full.canvas),
+        window.ZXingWASM.readBarcodes(autoFrames.barcode.imageData,{formats:["Code128","Code39","Code93","ITF","EAN13","EAN8","UPCA","UPCE"],tryHarder:true,tryRotate:false,tryInvert:true,tryDenoise:true,tryDownscale:true,downscaleFactor:1.35,downscaleThreshold:720,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain",eanAddOnSymbol:"Read"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-1D"}:null;}),
+        window.ZXingWASM.readBarcodes(autoFrames.qr.imageData,{formats:["QRCode","DataMatrix","MicroQRCode","RMQRCode"],tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,tryDownscale:true,downscaleFactor:1.35,downscaleThreshold:720,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-2D"}:null;})
       ]);
     }else{
       var fastFrame=renderFastRegion(video);
-      fastResults=await Promise.all([decodeWithNative(video),decodeWithZXing(fastFrame.imageData,false)]);
+      fastResults=await Promise.all([decodeWithNative(fastFrame.canvas),decodeWithZXing(fastFrame.imageData,false)]);
     }
     var fastHits=0;
     for(var fr=0;fr<fastResults.length&&!state.scanLocked;fr++){

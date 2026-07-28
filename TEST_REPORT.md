@@ -1,4 +1,4 @@
-# v1.0.9 테스트 결과
+# v1.0.10 테스트 결과
 
 - JavaScript 문법 검사: PASS
 - HTML ID 중복 검사: PASS
@@ -11,7 +11,7 @@
 - UPS/M12 유니트 2단계 선택: PASS
 - 기존 V13 저장 데이터 키 호환: PASS
 - 작업유형 포함 XLSX: PASS
-- 서비스 워커 v1.0.9 캐시: PASS
+- 서비스 워커 v1.0.10 캐시: PASS
 - 로컬 HTTP 응답: PASS
 - ZIP CRC 무결성: PASS
 
@@ -37,6 +37,11 @@
 - 중앙 pointsOfInterest 초점 기준점 적용: PASS
 - Android 흐림 연속 감지 후 자동 재초점: PASS
 - 선명도 회복 시 재초점 중단 및 최대 6회 제한: PASS
+- object-fit cover 기준 화면 스캔 프레임→영상 좌표 변환: PASS
+- 네이티브·ZXing 전체 판독 경로의 스캔 영역 제한: PASS
+- 정밀 판독 하위 영역의 프레임 내부 제한: PASS
+- Android 작은 코드 1600px 고해상도 확대: PASS
+- 자동 모드 영역 내부 전체·1D·2D 병렬 판독: PASS
 - 네이티브·ZXing 고속 병렬 경로: PASS
 - 고속 실패 후 2영역 정밀 보강 경로: PASS
 - 동일 프레임 중복 후보 배제: PASS
