@@ -1,7 +1,7 @@
 {
   "checks": {
-    "app_version_1_0_13": true,
-    "cache_v1_0_13": true,
+    "app_version_1_0_14": true,
+    "cache_v1_0_14": true,
     "no_missing_dom_ids": true,
     "no_duplicate_ids": true,
     "large_reader_css": true,
@@ -29,11 +29,9 @@
     "zxing_valid_result_only": true,
     "update_menu_input_reset": true,
     "update_reset_preserves_records": true,
-    "ux_today_dashboard": true,
-    "ux_current_work_card": true,
-    "ux_duplicate_notice": true,
-    "ux_recent_undo": true,
-    "ux_quick_dock": true,
+    "main_ui_matches_v1_0_12": true,
+    "scanner_only_ui_refined": true,
+    "scan_frame_geometry_preserved": true,
     "camera_engine_unchanged": true
   },
   "scan_mode_count": 4,

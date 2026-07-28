@@ -1,12 +1,12 @@
 {
-  "app_version_1_0_13": true,
+  "app_version_1_0_14": true,
   "new_filename_rule": true,
   "relocation_filename_rule": true,
   "local_date": true,
   "daily_sequence": true,
   "xlsx_extension": true,
   "version_json": true,
-  "sw_cache_v1_0_13": true,
+  "sw_cache_v1_0_14": true,
   "new_installation_15_columns": true,
   "relocation_grouped_15_columns": true,
   "android_default_rear_camera": true,
@@ -23,10 +23,8 @@
   "zxing_valid_result_only": true,
   "update_menu_input_reset": true,
   "update_reset_preserves_records": true,
-  "ux_today_dashboard": true,
-  "ux_current_work_card": true,
-  "ux_duplicate_notice": true,
-  "ux_recent_undo": true,
-  "ux_quick_dock": true,
+  "main_ui_matches_v1_0_12": true,
+  "scanner_only_ui_refined": true,
+  "scan_frame_geometry_preserved": true,
   "camera_engine_unchanged": true
 }
