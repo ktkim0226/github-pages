@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.11";
+var APP_VERSION="1.0.12";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -1168,7 +1168,7 @@ function hasUnsavedWork(){
   if(state.scanning||state.slot||state.rack||state.shelf)return true;
   var ids=state.workMode==="relocation"?
     ["beforeOffice","beforeRing","beforeSlot","beforeWavelength","relocationUnitCategory","relocationUnitName","unitBarcode","afterOffice","afterRing","afterSlot","afterWavelength","relocationMemo"]:
-    ["wavelength","slotNumber","unitCategory","unitName","memo","manualCode"];
+    ["ringName","officeName","wavelength","slotNumber","unitCategory","unitName","memo","manualCode"];
   return ids.some(function(id){var el=$(id);return el&&clean(el.value);});
 }
 function showUpdateAvailable(worker,remoteVersion){
@@ -1176,7 +1176,24 @@ function showUpdateAvailable(worker,remoteVersion){
   var dirty=hasUnsavedWork();
   text("updateMessage",dirty?"입력 중인 내용이 있습니다. 저장한 뒤 업데이트하세요.":"버전 "+(remoteVersion||"최신")+"을 적용할 수 있습니다.");
   $("applyUpdateBtn").textContent=dirty?"저장 후 업데이트":"지금 업데이트";
+  $("updateResetBtn").classList.toggle("hidden",!dirty);
   show("updateBanner");
+}
+async function resetInputsForUpdate(){
+  if(!hasUnsavedWork()){showUpdateAvailable(pendingServiceWorker);return;}
+  if(!confirm("입력 중인 내용을 모두 초기화하시겠습니까?\n이미 저장된 신규 증설·재배치 데이터와 XLSX 파일은 삭제되지 않습니다."))return;
+  await stopScanner(true);
+  if(state.workMode==="relocation"){
+    clearRelocationForm();
+  }else{
+    state.ring="";state.office="";state.rack="";state.shelf="";state.slot="";
+    state.skipRack=false;state.skipShelf=false;state.stage="rack";state.started=false;
+    ["ringName","officeName","manualCode","slotCode","wavelength","slotNumber","unitCategory","memo"].forEach(function(id){if($(id))$(id).value="";});
+    populateUnitNames();$("skipRack").checked=false;$("skipShelf").checked=false;
+    hide("workflowSection");hide("slotSection");show("siteSection");show("startWorkBtn");hide("editWorkBtn");
+  }
+  saveLocal();updateUI();showUpdateAvailable(pendingServiceWorker);
+  toast("입력 내용을 초기화했습니다. 이제 업데이트할 수 있습니다.");
 }
 function activateWaitingWorker(force){
   if(hasUnsavedWork()&&!force){showUpdateAvailable(pendingServiceWorker);toast("입력 내용을 먼저 저장하거나 초기화해 주세요.");return;}
@@ -1218,6 +1235,7 @@ function registerServiceWorker(){
   }).catch(console.error);
 }
 $("applyUpdateBtn").addEventListener("click",function(){activateWaitingWorker(false);});
+$("updateResetBtn").addEventListener("click",resetInputsForUpdate);
 $("dismissUpdateBtn").addEventListener("click",function(){hide("updateBanner");});
 window.addEventListener("load",registerServiceWorker);
 window.addEventListener("pageshow",function(){checkAppVersion();});

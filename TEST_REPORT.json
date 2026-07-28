@@ -1,7 +1,7 @@
 {
   "checks": {
-    "app_version_1_0_11": true,
-    "cache_v1_0_11": true,
+    "app_version_1_0_12": true,
+    "cache_v1_0_12": true,
     "no_missing_dom_ids": true,
     "no_duplicate_ids": true,
     "large_reader_css": true,
@@ -26,7 +26,9 @@
     "native_detector_roi_only": true,
     "small_code_high_resolution": true,
     "horizontal_vertical_1d_parallel": true,
-    "zxing_valid_result_only": true
+    "zxing_valid_result_only": true,
+    "update_menu_input_reset": true,
+    "update_reset_preserves_records": true
   },
   "scan_mode_count": 4,
   "missing_dom_ids": [],
