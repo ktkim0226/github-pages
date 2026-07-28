@@ -1,7 +1,7 @@
 {
   "checks": {
-    "app_version_1_0_12": true,
-    "cache_v1_0_12": true,
+    "app_version_1_0_13": true,
+    "cache_v1_0_13": true,
     "no_missing_dom_ids": true,
     "no_duplicate_ids": true,
     "large_reader_css": true,
@@ -28,7 +28,13 @@
     "horizontal_vertical_1d_parallel": true,
     "zxing_valid_result_only": true,
     "update_menu_input_reset": true,
-    "update_reset_preserves_records": true
+    "update_reset_preserves_records": true,
+    "ux_today_dashboard": true,
+    "ux_current_work_card": true,
+    "ux_duplicate_notice": true,
+    "ux_recent_undo": true,
+    "ux_quick_dock": true,
+    "camera_engine_unchanged": true
   },
   "scan_mode_count": 4,
   "missing_dom_ids": [],

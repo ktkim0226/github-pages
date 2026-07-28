@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.12";
+var APP_VERSION="1.0.13";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -279,9 +279,60 @@ function updateUI(){
   if(state.workMode==="new"){show("siteSection");hide("relocationSection");if(state.started){show("workflowSection");show("dataSection");show("editWorkBtn");hide("startWorkBtn");}else{hide("workflowSection");hide("slotSection");hide("editWorkBtn");show("startWorkBtn");}}
   else if(state.workMode==="relocation"){hide("siteSection");hide("workflowSection");hide("slotSection");show("relocationSection");show("dataSection");}
   else{hide("siteSection");hide("workflowSection");hide("slotSection");hide("relocationSection");hide("dataSection");}
+  $("quickDock").classList.toggle("hidden",!state.workMode);
   renderRecords();
 }
 function locationText(office,ring,slot,wavelength){return [office,ring,slot,wavelength].filter(Boolean).join(" / ");}
+var duplicateRecordIndex=-1;
+function recordTimestamp(record){
+  var raw=String(record&&record.id||"").split("-")[0],time=Number(raw);
+  if(Number.isFinite(time)&&time>1000000000000)return time;
+  var parsed=Date.parse(record&&record.createdAt||"");return Number.isFinite(parsed)?parsed:0;
+}
+function isTodayRecord(record){
+  var time=recordTimestamp(record);if(!time)return false;
+  var d=new Date(time),n=new Date();return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate();
+}
+function relativeRecordTime(record){
+  var time=recordTimestamp(record);if(!time)return record.createdAt||"";
+  var seconds=Math.max(0,Math.floor((Date.now()-time)/1000));
+  if(seconds<10)return "방금 전";if(seconds<60)return seconds+"초 전";
+  var minutes=Math.floor(seconds/60);if(minutes<60)return minutes+"분 전";
+  var hours=Math.floor(minutes/60);if(hours<24)return hours+"시간 전";
+  return new Date(time).toLocaleDateString();
+}
+function recordPrimaryCode(record){
+  if((record.workType||"신규 증설")==="재배치")return record.unitBarcode||record.unitName||"재배치 기록";
+  return record.slot||record.slotNumber||record.shelf||record.rack||"신규 증설 기록";
+}
+function renderUxDashboard(){
+  var today=state.records.filter(isTodayRecord),todayNew=today.filter(function(r){return (r.workType||"신규 증설")!=="재배치";}).length,todayRelocation=today.length-todayNew;
+  text("todayRecordCount",today.length+"건");text("todayRecordBreakdown","신규 증설 "+todayNew+" · 재배치 "+todayRelocation);text("totalRecordCount",String(state.records.length));
+  var title="작업 유형을 선택하세요",detail="신규 증설 또는 재배치를 선택하면 작업 정보가 표시됩니다.",badge="대기";
+  if(state.workMode==="new"){
+    title=[state.ring||clean($("ringName").value),state.office||clean($("officeName").value)].filter(Boolean).join(" · ")||"신규 증설 기본정보 입력";
+    detail="Rack "+(state.skipRack?"생략":state.rack||"미등록")+" · Shelf "+(state.skipShelf?"생략":state.shelf||"미등록")+" · Slot "+(state.slot||"미등록");
+    badge=state.started?stageLabel(state.stage):"준비";
+  }else if(state.workMode==="relocation"){
+    title=[clean($("beforeOffice").value)||"출발지 미입력",clean($("afterOffice").value)||"도착지 미입력"].join(" → ");
+    detail="유니트바코드 "+(clean($("unitBarcode").value)||"미등록")+" · 모든 항목 선택 입력";
+    badge="재배치";
+  }
+  text("currentWorkTitle",title);text("currentWorkDetail",detail);text("currentStageBadge",badge);
+  var recent=state.records.slice(-3).reverse();
+  $("recentRecordList").innerHTML=recent.length?recent.map(function(r){
+    var type=r.workType||"신규 증설";
+    return '<div class="ux-recent-row"><span class="ux-type-dot '+(type==="재배치"?"relocation":"new")+'"></span><div><strong>'+esc(recordPrimaryCode(r))+'</strong><small>'+esc(type)+" · "+esc(relativeRecordTime(r))+'</small></div><button class="recent-undo" data-id="'+esc(r.id)+'" type="button">실행 취소</button></div>';
+  }).join(""):'<p>아직 저장된 작업이 없습니다.</p>';
+  document.querySelectorAll(".recent-undo").forEach(function(btn){btn.addEventListener("click",function(){
+    var index=state.records.findIndex(function(r){return r.id===btn.dataset.id;});if(index<0)return;
+    if(!confirm("이 저장 기록 1건을 취소하시겠습니까?"))return;
+    state.records.splice(index,1);saveLocal();renderRecords();toast("최근 저장 1건을 취소했습니다.");
+  });});
+  $("quickScanBtn").disabled=state.workMode==="new"&&!state.started;
+  $("quickSaveBtn").disabled=state.workMode==="new"&&!state.slot;
+  $("quickSaveBtn").querySelector("b").textContent=state.workMode==="relocation"?"재배치 저장":"현재 Slot 저장";
+}
 function renderRecords(){
   var newRows=[],relocationRows=[];
   state.records.forEach(function(r,originalIndex){
@@ -292,9 +343,14 @@ function renderRecords(){
   $("newRecordBody").innerHTML=newRows.map(function(item,i){var r=item.r;return "<tr><td>"+(i+1)+"</td><td>"+esc(locationText(r.office,r.ring,"",""))+"</td><td>"+esc(r.rack||"")+"</td><td>"+esc(r.shelf||"")+"</td><td>"+esc(r.slotNumber||r.slot||"")+"</td><td>"+esc(r.wavelength||"")+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></td></tr>";}).join("");
   $("relocationRecordBody").innerHTML=relocationRows.map(function(item,i){var r=item.r;return "<tr><td>"+(i+1)+"</td><td class='before-cell'>"+esc(locationText(r.beforeOffice,r.beforeRing,r.beforeSlot,r.beforeWavelength))+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||"")+"</td><td class='after-cell'>"+esc(locationText(r.afterOffice,r.afterRing,r.afterSlot,r.afterWavelength))+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></td></tr>";}).join("");
   document.querySelectorAll(".delete-row").forEach(function(btn){btn.addEventListener("click",function(){state.records.splice(Number(btn.dataset.index),1);saveLocal();renderRecords();toast("삭제했습니다.");});});
+  renderUxDashboard();
 }
 function showRecordPanel(kind){
   var isNew=kind==="new";$("newRecordsTab").classList.toggle("active",isNew);$("relocationRecordsTab").classList.toggle("active",!isNew);$("newRecordsPanel").classList.toggle("hidden",!isNew);$("relocationRecordsPanel").classList.toggle("hidden",isNew);
+}
+function openRecordSection(kind){
+  show("dataSection");showRecordPanel(kind||"new");
+  $("dataSection").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
 
@@ -338,6 +394,15 @@ function selectWorkMode(mode){
 }
 function changeWorkMode(){stopScanner(true);state.workMode="";state.started=false;show("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});}
 function clearRelocationForm(){["beforeOffice","beforeRing","beforeSlot","beforeWavelength","afterOffice","afterRing","afterSlot","afterWavelength","unitBarcode","relocationMemo","relocationUnitCategory"].forEach(function(id){$(id).value="";});populateRelocationUnitNames();}
+function findDuplicateRecord(value){
+  value=normalizeDecodedValue(value);if(!value)return -1;
+  return state.records.findIndex(function(r){return [r.rack,r.shelf,r.slot,r.unitBarcode].some(function(v){return normalizeDecodedValue(v)===value;});});
+}
+function showDuplicateNotice(value){
+  duplicateRecordIndex=findDuplicateRecord(value);
+  if(duplicateRecordIndex<0){hide("duplicateAlert");return;}
+  text("duplicateMessage",value+"는 이미 저장된 기록에 포함되어 있습니다.");show("duplicateAlert");
+}
 function saveRelocation(){
   state.records.push({id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"재배치",beforeOffice:clean($("beforeOffice").value),beforeRing:clean($("beforeRing").value),beforeSlot:clean($("beforeSlot").value),beforeWavelength:clean($("beforeWavelength").value),unitCategory:clean($("relocationUnitCategory").value),unitName:clean($("relocationUnitName").value),unitBarcode:clean($("unitBarcode").value),afterOffice:clean($("afterOffice").value),afterRing:clean($("afterRing").value),afterSlot:clean($("afterSlot").value),afterWavelength:clean($("afterWavelength").value),memo:clean($("relocationMemo").value),createdAt:new Date().toLocaleString(),ring:"",office:"",rack:"",shelf:"",slot:"",wavelength:"",slotNumber:""});
   clearRelocationForm();saveLocal();renderRecords();toast("재배치 정보를 저장했습니다.");
@@ -365,6 +430,7 @@ function applyCode(value,format,manual){
   var appliedStage=state.stage;
   if(state.workMode==="relocation"||appliedStage==="unitBarcode"){
     $("unitBarcode").value=value;
+    showDuplicateNotice(value);renderUxDashboard();
     vibrate();toast("유니트바코드가 반영되었습니다.");return;
   }
   if(appliedStage==="rack"){
@@ -385,6 +451,7 @@ function applyCode(value,format,manual){
 
   saveLocal();
   updateUI();
+  showDuplicateNotice(value);
   vibrate();
   toast(stageLabel(appliedStage)+" 값이 반영되었습니다.");
 }
@@ -1156,6 +1223,26 @@ $("newCsvBtn").addEventListener("click",function(){exportXLSX("신규 증설");}
 $("newShareBtn").addEventListener("click",function(){shareRecordText("신규 증설");});
 $("relocationCsvBtn").addEventListener("click",function(){exportXLSX("재배치");});
 $("relocationShareBtn").addEventListener("click",function(){shareRecordText("재배치");});
+$("recentViewAllBtn").addEventListener("click",function(){openRecordSection(state.workMode==="relocation"?"relocation":"new");});
+$("duplicateDismissBtn").addEventListener("click",function(){duplicateRecordIndex=-1;hide("duplicateAlert");});
+$("duplicateViewBtn").addEventListener("click",function(){
+  var record=duplicateRecordIndex>=0&&state.records[duplicateRecordIndex];
+  openRecordSection(record&&(record.workType||"신규 증설")==="재배치"?"relocation":"new");
+});
+$("quickRecordsBtn").addEventListener("click",function(){openRecordSection(state.workMode==="relocation"?"relocation":"new");});
+$("quickScanBtn").addEventListener("click",function(){
+  if(state.workMode==="relocation")startUnitBarcodeScan();
+  else if(state.started)startScanner();
+  else toast("신규 증설 기본정보를 입력하고 작업을 시작하세요.");
+});
+$("quickSaveBtn").addEventListener("click",function(){
+  if(state.workMode==="relocation")saveRelocation();
+  else if(state.slot)saveSlot();
+  else toast("Slot 스캔 후 상세정보를 입력하세요.");
+});
+["ringName","officeName","beforeOffice","beforeRing","beforeSlot","beforeWavelength","afterOffice","afterRing","afterSlot","afterWavelength","unitBarcode","relocationUnitCategory","relocationUnitName"].forEach(function(id){
+  $(id).addEventListener("input",renderUxDashboard);$(id).addEventListener("change",renderUxDashboard);
+});
 
 function environmentCheck(){
   var okSecure=location.protocol==="https:"||location.hostname==="localhost";
