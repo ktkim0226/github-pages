@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.8";
+var APP_VERSION="1.0.9";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -32,6 +32,7 @@ var state={
   regionIndex:0, variantIndex:0,
   videoDevices:[], selectedCameraId:"", autoSelectedCameraId:"", candidateVotes:{}, candidateWindowMs:1800, requiredVotes:2,
   quality:{brightness:0,sharpness:0,lastChecked:0}, qualityCanvas:null, focusPending:false, autoFocusTimer:0, autoFocusSupported:false,
+  androidBlurCount:0, androidFocusKickCount:0, lastAndroidFocusKick:0,
   performanceProfile:"balanced", scanStartedAt:0, fastMissSince:0, decodeTimes:[], lastFrameSignature:null, lastFrameSignatureAt:0, nativeHit:null, zxingHit:null, autoCanvases:{}, preciseCopyCanvas:null
 };
 
@@ -630,6 +631,42 @@ function cameraLabelScore(label){
   if(/ultra|macro|tele|depth|wide angle|초광각|망원|접사|심도/i.test(value))score-=80;
   return score;
 }
+function waitMs(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
+async function measureCameraPreview(stream){
+  var video=null;
+  try{
+    video=document.createElement("video");
+    video.muted=true;video.playsInline=true;video.autoplay=true;video.srcObject=stream;
+    await video.play();
+    var started=Date.now();
+    while((!video.videoWidth||video.readyState<2)&&Date.now()-started<900)await waitMs(60);
+    if(!video.videoWidth)return {sharpness:0,brightness:0};
+    await waitMs(380);
+    var canvas=document.createElement("canvas"),w=180,h=120;canvas.width=w;canvas.height=h;
+    var ctx=canvas.getContext("2d",{willReadFrequently:true}),scores=[],brightnessValues=[];
+    for(var sample=0;sample<3;sample++){
+      var sourceWidth=video.videoWidth*.62,sourceHeight=video.videoHeight*.62;
+      var sourceX=(video.videoWidth-sourceWidth)/2,sourceY=(video.videoHeight-sourceHeight)/2;
+      ctx.drawImage(video,sourceX,sourceY,sourceWidth,sourceHeight,0,0,w,h);
+      var data=ctx.getImageData(0,0,w,h).data,sum=0,edge=0,count=w*h;
+      for(var i=0;i<data.length;i+=4)sum+=data[i]+data[i+1]+data[i+2];
+      for(var y=1;y<h;y++)for(var x=1;x<w;x++){
+        var a=(y*w+x)*4,left=(y*w+x-1)*4,up=((y-1)*w+x)*4;
+        var gray=(data[a]+data[a+1]+data[a+2])/3;
+        edge+=Math.abs(gray-(data[left]+data[left+1]+data[left+2])/3)+Math.abs(gray-(data[up]+data[up+1]+data[up+2])/3);
+      }
+      scores.push(edge/(count*2));brightnessValues.push(sum/(count*3));
+      await waitMs(110);
+    }
+    scores.sort(function(a,b){return a-b;});brightnessValues.sort(function(a,b){return a-b;});
+    return {sharpness:scores[1]||0,brightness:brightnessValues[1]||0};
+  }catch(e){
+    console.warn("camera preview measurement failed",e);
+    return {sharpness:0,brightness:0};
+  }finally{
+    if(video){video.pause();video.srcObject=null;}
+  }
+}
 async function inspectRearCamera(device){
   var stream=null;
   try{
@@ -642,6 +679,16 @@ async function inspectRearCamera(device){
     var caps=track.getCapabilities?track.getCapabilities():{};
     var settings=track.getSettings?track.getSettings():{};
     var modes=Array.isArray(caps.focusMode)?caps.focusMode:[];
+    var supported=navigator.mediaDevices.getSupportedConstraints?navigator.mediaDevices.getSupportedConstraints():{};
+    if(supported.pointsOfInterest){
+      try{await track.applyConstraints({advanced:[{pointsOfInterest:[{x:.5,y:.5}]}]});}catch(e){}
+    }
+    if(modes.indexOf("continuous")>=0){
+      try{await track.applyConstraints({advanced:[{focusMode:"continuous"}]});}catch(e){}
+    }else if(modes.indexOf("single-shot")>=0){
+      try{await track.applyConstraints({advanced:[{focusMode:"single-shot"}]});}catch(e){}
+    }
+    var measured=await measureCameraPreview(stream);
     var score=cameraLabelScore(device.label);
     if(settings.facingMode==="environment")score+=120;
     if(settings.facingMode==="user")score-=1000;
@@ -650,7 +697,8 @@ async function inspectRearCamera(device){
     if(caps.focusDistance&&Number(caps.focusDistance.max)>Number(caps.focusDistance.min))score+=70;
     if(caps.torch===true||Array.isArray(caps.torch)&&caps.torch.indexOf(true)>=0)score+=35;
     if(caps.zoom&&Number(caps.zoom.max)>1)score+=Math.min(35,Math.round(Number(caps.zoom.max)*3));
-    return {device:device,score:score,focusModes:modes};
+    if(measured.brightness>=25&&measured.brightness<=235)score+=Math.min(300,Math.round(measured.sharpness*18));
+    return {device:device,score:score,focusModes:modes,sharpness:measured.sharpness,brightness:measured.brightness};
   }catch(e){
     console.warn("camera probe failed",device.label||device.deviceId,e);
     return null;
@@ -668,12 +716,14 @@ async function selectBestRearCamera(devices){
   setScannerStatus("자동초점이 지원되는 기본 후면 카메라를 찾고 있습니다.");
   var best=null;
   for(var i=0;i<candidates.length;i++){
+    setScannerStatus("기본 후면 카메라 자동 점검 중 · "+(i+1)+"/"+candidates.length);
     var result=await inspectRearCamera(candidates[i]);
     if(result&&(!best||result.score>best.score))best=result;
+    await waitMs(90);
   }
   if(best&&best.score>-500){
     state.autoSelectedCameraId=best.device.deviceId;
-    console.info("auto rear camera selected",best.device.label||best.device.deviceId,best.focusModes,best.score);
+    console.info("auto rear camera selected",best.device.label||best.device.deviceId,best.focusModes,best.score,best.sharpness);
     return best.device;
   }
   return chooseRearCamera(devices);
@@ -689,14 +739,18 @@ async function requestFocus(){
   try{
     var modes=Array.isArray(caps.focusMode)?caps.focusMode:[];
     var supported=navigator.mediaDevices&&navigator.mediaDevices.getSupportedConstraints?navigator.mediaDevices.getSupportedConstraints():{};
-    var canTryFocus=modes.length||supported.focusMode;
+    var pointApplied=false;
+    if(supported.pointsOfInterest){
+      try{await info.track.applyConstraints({advanced:[{pointsOfInterest:[{x:.5,y:.5}]}]});pointApplied=true;}catch(e){}
+    }
+    var canTryFocus=modes.length||supported.focusMode||pointApplied;
     if(!canTryFocus)return false;
     if(modes.indexOf("single-shot")>=0){
       await info.track.applyConstraints({advanced:[{focusMode:"single-shot"}]});
       if(modes.indexOf("continuous")>=0)setTimeout(function(){
         if(info.track.readyState==="live")info.track.applyConstraints({advanced:[{focusMode:"continuous"}]}).catch(function(){});
       },450);
-    }else{
+    }else if(modes.indexOf("continuous")>=0||supported.focusMode){
       await info.track.applyConstraints({advanced:[{focusMode:"continuous"}]});
     }
     state.focusPending=true;text("qualityStatus","초점을 빠르게 맞추는 중입니다. 잠시 고정하세요.");$("qualityStatus").className="quality-status warn";
@@ -705,7 +759,7 @@ async function requestFocus(){
 }
 function clearAutoFocusMonitor(){
   if(state.autoFocusTimer)clearInterval(state.autoFocusTimer);
-  state.autoFocusTimer=0;state.autoFocusSupported=false;state.focusPending=false;
+  state.autoFocusTimer=0;state.autoFocusSupported=false;state.focusPending=false;state.androidBlurCount=0;state.androidFocusKickCount=0;state.lastAndroidFocusKick=0;
 }
 async function maintainContinuousFocus(force){
   var info=state.cameraCapabilities;if(!info||!info.track||info.track.readyState==="ended")return false;
@@ -734,15 +788,25 @@ async function startAutoFocusMonitor(){
     setTimeout(function(){if(state.scanning)maintainContinuousFocus(true);},1300);
   }
   state.autoFocusTimer=setInterval(function(){
-    if(state.scanning)maintainContinuousFocus(false);
-  },3500);
+    if(!state.scanning)return;
+    maintainContinuousFocus(false);
+    if(isAndroidDevice()){
+      var quality=state.quality||{},usableLight=quality.brightness>=35&&quality.brightness<=230;
+      if(usableLight&&quality.sharpness>0&&quality.sharpness<7)state.androidBlurCount++;
+      else state.androidBlurCount=0;
+      var now=Date.now();
+      if(state.androidBlurCount>=2&&state.androidFocusKickCount<6&&now-state.lastAndroidFocusKick>2200){
+        state.androidBlurCount=0;state.androidFocusKickCount++;state.lastAndroidFocusKick=now;requestFocus();
+      }
+    }
+  },1200);
 }
 async function startScanner(){
   if(state.scanning)return;
   openScannerModal();updateModeUI();resetCandidates();setScannerStatus("ZXing-C++ WASM 엔진을 준비하고 있습니다.");
   try{
     await ensureScannerLibrary();if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error("카메라 API 미지원");
-    if(!state.videoDevices.length){var permission=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});permission.getTracks().forEach(function(t){t.stop();});}
+    if(!state.videoDevices.length){var permission=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});permission.getTracks().forEach(function(t){t.stop();});await waitMs(120);}
     var devices=await navigator.mediaDevices.enumerateDevices();populateCameraSelect(devices,state.selectedCameraId);
     var chosen=state.selectedCameraId
       ?state.videoDevices.find(function(d){return d.deviceId===state.selectedCameraId;})
