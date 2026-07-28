@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.10";
+var APP_VERSION="1.0.11";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -557,7 +557,7 @@ async function decodeWithZXing(imageData,precise){
   var results=await window.ZXingWASM.readBarcodes(imageData,options);
   if(!results||!results.length)return null;
   var r=results.find(function(x){return x&&x.text&&!x.error;})||results[0];
-  return r&&r.text?{text:r.text,format:r.format||r.symbology||"ZXing",symbology:r.symbology,engine:"ZXing-C++"}:null;
+  return r&&r.text&&r.isValid!==false?{text:r.text,format:r.format||r.symbology||"ZXing",symbology:r.symbology,engine:"ZXing-C++",isValid:r.isValid!==false,orientation:r.orientation}:null;
 }
 function renderFastRegion(video){
   var cfg=profileConfig(),rect=activeScanRect(video),maxWidth=isAndroidDevice()?Math.max(1600,cfg.maxFastWidth):cfg.maxFastWidth;
@@ -577,7 +577,21 @@ function renderAutoFastRegions(video){
   var bw=base.w,bh=state.scanMode==="auto"?Math.max(120,Math.floor(base.h*.52)):base.h,bx=base.x,by=Math.floor(base.y+(base.h-bh)/2);
   var qs=Math.floor(Math.min(base.w,base.h)),qx=Math.floor(base.x+(base.w-qs)/2),qy=Math.floor(base.y+(base.h-qs)/2);
   var full=capture("full",base.x,base.y,base.w,base.h,480,280);
-  return {full:full,barcode:capture("barcode",bx,by,bw,bh,520,220),qr:capture("qr",qx,qy,qs,qs,420,420)};
+  var barcode=capture("barcode",bx,by,bw,bh,640,240);
+  var verticalCanvas=state.autoCanvases.barcodeVertical||(state.autoCanvases.barcodeVertical=document.createElement("canvas"));
+  var verticalContext=verticalCanvas.getContext("2d",{willReadFrequently:true});
+  verticalCanvas.width=full.canvas.height;verticalCanvas.height=full.canvas.width;
+  verticalContext.setTransform(0,1,-1,0,verticalCanvas.width,0);
+  verticalContext.drawImage(full.canvas,0,0);
+  verticalContext.setTransform(1,0,0,1,0,0);
+  var vertical={canvas:verticalCanvas,imageData:verticalContext.getImageData(0,0,verticalCanvas.width,verticalCanvas.height)};
+  return {full:full,barcode:barcode,barcodeVertical:vertical,qr:capture("qr",qx,qy,qs,qs,420,420)};
+}
+function rotateFastFrame(frame,key){
+  var canvas=state.autoCanvases[key]||(state.autoCanvases[key]=document.createElement("canvas")),ctx=canvas.getContext("2d",{willReadFrequently:true});
+  canvas.width=frame.canvas.height;canvas.height=frame.canvas.width;
+  ctx.setTransform(0,1,-1,0,canvas.width,0);ctx.drawImage(frame.canvas,0,0);ctx.setTransform(1,0,0,1,0,0);
+  return {canvas:canvas,imageData:ctx.getImageData(0,0,canvas.width,canvas.height)};
 }
 function frameSignature(video){
   var now=performance.now();if(now-state.lastFrameSignatureAt<180)return null;state.lastFrameSignatureAt=now;
@@ -600,14 +614,20 @@ async function decodeFrame(){
     var fastResults;
     if(state.scanMode==="auto"){
       var autoFrames=renderAutoFastRegions(video);
+      var oneDOptions={formats:["Code128","Code93","Code39","ITF","EAN13","EAN8","UPCA","UPCE"],tryHarder:true,tryRotate:false,tryInvert:false,tryDenoise:false,tryDownscale:true,downscaleFactor:1.35,downscaleThreshold:720,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain",eanAddOnSymbol:"Read"};
+      function firstZXing(rs,engine){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error&&x.isValid!==false;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:engine,isValid:r.isValid!==false,orientation:r.orientation}:null;}
       fastResults=await Promise.all([
         decodeWithNative(autoFrames.full.canvas),
-        window.ZXingWASM.readBarcodes(autoFrames.barcode.imageData,{formats:["Code128","Code39","Code93","ITF","EAN13","EAN8","UPCA","UPCE"],tryHarder:true,tryRotate:false,tryInvert:true,tryDenoise:true,tryDownscale:true,downscaleFactor:1.35,downscaleThreshold:720,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain",eanAddOnSymbol:"Read"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-1D"}:null;}),
-        window.ZXingWASM.readBarcodes(autoFrames.qr.imageData,{formats:["QRCode","DataMatrix","MicroQRCode","RMQRCode"],tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,tryDownscale:true,downscaleFactor:1.35,downscaleThreshold:720,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain"}).then(function(rs){var r=rs&&rs.find(function(x){return x&&x.text&&!x.error;});return r?{text:r.text,format:r.format||r.symbology||"ZXing",engine:"ZXing-2D"}:null;})
+        window.ZXingWASM.readBarcodes(autoFrames.barcode.imageData,oneDOptions).then(function(rs){return firstZXing(rs,"ZXing-1D-H");}),
+        window.ZXingWASM.readBarcodes(autoFrames.barcodeVertical.imageData,oneDOptions).then(function(rs){return firstZXing(rs,"ZXing-1D-V");}),
+        window.ZXingWASM.readBarcodes(autoFrames.qr.imageData,{formats:["QRCode","DataMatrix","MicroQRCode","RMQRCode"],tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,tryDownscale:true,downscaleFactor:1.35,downscaleThreshold:720,maxNumberOfSymbols:1,minLineCount:1,returnErrors:false,textMode:"Plain"}).then(function(rs){return firstZXing(rs,"ZXing-2D");})
       ]);
     }else{
       var fastFrame=renderFastRegion(video);
-      fastResults=await Promise.all([decodeWithNative(fastFrame.canvas),decodeWithZXing(fastFrame.imageData,false)]);
+      if(state.scanMode==="barcode"){
+        var rotatedFastFrame=rotateFastFrame(fastFrame,"barcodeModeVertical");
+        fastResults=await Promise.all([decodeWithNative(fastFrame.canvas),decodeWithZXing(fastFrame.imageData,false),decodeWithZXing(rotatedFastFrame.imageData,false)]);
+      }else fastResults=await Promise.all([decodeWithNative(fastFrame.canvas),decodeWithZXing(fastFrame.imageData,false)]);
     }
     var fastHits=0;
     for(var fr=0;fr<fastResults.length&&!state.scanLocked;fr++){

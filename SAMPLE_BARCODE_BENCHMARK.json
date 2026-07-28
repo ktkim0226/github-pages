@@ -1,0 +1,19 @@
+{
+  "version": "1.0.11",
+  "date": "2026-07-28",
+  "environment": "warm ZXing-WASM 3.1.2, 1600px normalized input",
+  "target_ms": 1000,
+  "samples": [
+    {"file": "KakaoTalk_20260728_140302063.jpg", "format": "QRCode", "value": "CNS2400014", "decode_ms": 67, "valid": true},
+    {"file": "KakaoTalk_20260728_140302063_01.jpg", "format": "Code93", "value": "CNS2000651", "decode_ms": 63, "valid": true},
+    {"file": "KakaoTalk_20260728_140302063_02.jpg", "format": "Code128", "value": "LGS1202501", "decode_ms": 57, "valid": true},
+    {"file": "KakaoTalk_20260728_140302063_03.jpg", "format": "Code128", "value": "LGS151200226", "decode_ms": 51, "valid": true},
+    {"file": "KakaoTalk_20260728_140302063_04.jpg", "format": "Code128", "value": "U3132907", "decode_ms": 50, "valid": true},
+    {"file": "KakaoTalk_20260728_140302063_05.jpg", "format": null, "value": null, "decode_ms": 61, "valid": false, "note": "첨부 사진 자체에서는 유효 체크섬 결과 미검출"},
+    {"file": "KakaoTalk_20260728_140302063_06.jpg", "format": "Code128", "value": "LGS1113733", "decode_ms": 60, "valid": true},
+    {"file": "KakaoTalk_20260728_140302063_07.jpg", "format": null, "value": null, "decode_ms": 56, "valid": false, "note": "첨부 사진 자체에서는 유효 체크섬 결과 미검출"}
+  ],
+  "verified_under_target": 6,
+  "total_samples": 8,
+  "note": "디코더 처리시간만 측정한 값이며 실제 카메라 초점 완료 시간은 단말과 조명에 따라 달라질 수 있습니다."
+}

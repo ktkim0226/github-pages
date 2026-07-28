@@ -1,7 +1,7 @@
 {
   "checks": {
-    "app_version_1_0_10": true,
-    "cache_v1_0_10": true,
+    "app_version_1_0_11": true,
+    "cache_v1_0_11": true,
     "no_missing_dom_ids": true,
     "no_duplicate_ids": true,
     "large_reader_css": true,
@@ -24,7 +24,9 @@
     "android_blur_refocus_monitor": true,
     "strict_scan_frame_crop": true,
     "native_detector_roi_only": true,
-    "small_code_high_resolution": true
+    "small_code_high_resolution": true,
+    "horizontal_vertical_1d_parallel": true,
+    "zxing_valid_result_only": true
   },
   "scan_mode_count": 4,
   "missing_dom_ids": [],
