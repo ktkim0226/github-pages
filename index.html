@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="자산바코드 스캐너">
-  <title>자산바코드 스캐너 v1.0.15</title>
+  <title>자산바코드 스캐너 v1.0.16</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.0.15">
+  <link rel="stylesheet" href="./styles.css?v=1.0.16">
 </head>
 <body>
 <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
@@ -22,7 +22,7 @@
 <header>
   <div>
     <h1>자산바코드 스캐너</h1>
-    <p>신규 증설 또는 재배치 작업을 선택하여 등록 · v1.0.15</p>
+    <p>신규 증설 또는 재배치 작업을 선택하여 등록 · v1.0.16</p>
   </div>
 </header>
 
@@ -246,6 +246,10 @@
         <p id="scanGuideText">코드 하나를 화면 중앙에 크게 맞춰 주세요.</p>
       </div>
       <div id="scannerStatus" class="scanner-status camera-status-overlay">카메라를 준비하고 있습니다.</div>
+      <div id="shootingTip" class="shooting-tip hidden" role="status">
+        <span class="shooting-tip-icon" aria-hidden="true">!</span>
+        <div><strong>촬영 TIP</strong><p id="shootingTipText">조명이 너무 어둡습니다. 카메라 조명을 켜주세요.</p></div>
+      </div>
       <div class="camera-diagnostics">
         <div id="performanceStatus" class="quality-status good">프로필 균형</div>
         <div id="qualityStatus" class="quality-status">영상 분석 중</div>
@@ -254,8 +258,10 @@
     </div>
 
     <div class="scanner-quick-controls">
-      <button id="focusBtn" class="camera-control compact-control control-active" type="button" aria-pressed="true"><span aria-hidden="true">◎</span><b>자동 초점 ON</b></button>
-      <button id="torchBtn" class="camera-control compact-control hidden" type="button" aria-pressed="false"><span aria-hidden="true">✦</span><b>조명 켜기</b></button>
+      <div class="scanner-toggle-bar">
+        <button id="torchBtn" class="scanner-toggle hidden" type="button" aria-pressed="false"><span class="toggle-icon" aria-hidden="true">ϟ</span><b>카메라 조명</b><span class="control-switch" aria-hidden="true"><i></i></span></button>
+        <button id="focusBtn" class="scanner-toggle control-active" type="button" aria-pressed="true"><span class="toggle-icon" aria-hidden="true">◎</span><b>자동 초점</b><span class="control-switch" aria-hidden="true"><i></i></span></button>
+      </div>
       <div id="quickZoom" class="quick-zoom compact-zoom hidden">
         <button type="button" data-zoom="1">1×</button>
         <button type="button" data-zoom="2">2×</button>
@@ -301,6 +307,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"
   crossorigin="anonymous"
   onerror="this.onerror=null;this.src='https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';"></script>
-<script src="./app.js?v=1.0.15"></script>
+<script src="./app.js?v=1.0.16"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.15";
+var APP_VERSION="1.0.16";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -31,7 +31,7 @@ var state={
   zxingReadyPromise:null, nativeDetector:null, nativeDetectors:{}, detectorFormats:[], decodeAttempts:0, decodeErrors:0, lastDecodeError:"",
   regionIndex:0, variantIndex:0,
   videoDevices:[], selectedCameraId:"", autoSelectedCameraId:"", candidateVotes:{}, candidateWindowMs:1800, requiredVotes:2,
-  quality:{brightness:0,sharpness:0,lastChecked:0}, qualityCanvas:null, focusPending:false, autoFocusTimer:0, autoFocusSupported:false,
+  quality:{brightness:0,sharpness:0,lastChecked:0}, qualityCanvas:null, focusPending:false, autoFocusTimer:0, autoFocusSupported:false, autoFocusEnabled:true,
   androidBlurCount:0, androidFocusKickCount:0, lastAndroidFocusKick:0,
   performanceProfile:"balanced", scanStartedAt:0, fastMissSince:0, decodeTimes:[], lastFrameSignature:null, lastFrameSignatureAt:0, nativeHit:null, zxingHit:null, autoCanvases:{}, preciseCopyCanvas:null
 };
@@ -87,10 +87,14 @@ function analyzeFrameQuality(video){
   var brightness=sum/(count*3);for(var yy=1;yy<h;yy++){for(var xx=1;xx<w;xx++){var a=(yy*w+xx)*4,b=(yy*w+xx-1)*4,u=((yy-1)*w+xx)*4;var g=(d[a]+d[a+1]+d[a+2])/3;edge+=Math.abs(g-(d[b]+d[b+1]+d[b+2])/3)+Math.abs(g-(d[u]+d[u+1]+d[u+2])/3);}}
   var sharpness=edge/(count*2);state.quality={brightness:brightness,sharpness:sharpness,lastChecked:now};
   var msg,cls="quality-status good";
-  if(brightness<55){msg="조명이 부족합니다. 조명을 켜거나 밝은 방향으로 이동하세요.";cls="quality-status warn";}
+  if(brightness<55){
+    msg="조명이 부족합니다. 조명을 켜거나 밝은 방향으로 이동하세요.";cls="quality-status warn";
+    text("shootingTipText",state.cameraCapabilities&&state.cameraCapabilities.caps&&state.cameraCapabilities.caps.torch?"조명이 너무 어둡습니다. 카메라 조명을 켜주세요.":"조명이 너무 어둡습니다. 밝은 곳으로 이동해 주세요.");show("shootingTip");
+  }
   else if(brightness>225){msg="반사가 강합니다. 단말을 약간 기울여 주세요.";cls="quality-status warn";}
   else if(sharpness<7){msg="초점이 흐립니다. 잠시 고정하거나 초점 다시 맞춤을 누르세요.";cls="quality-status warn";}
   else msg="영상 품질 양호 · 밝기 "+Math.round(brightness)+" · 선명도 "+sharpness.toFixed(1);
+  if(brightness>=55)hide("shootingTip");
   text("qualityStatus",msg);$("qualityStatus").className=cls;
 }
 
@@ -102,6 +106,7 @@ function openScannerModal(){
 }
 function closeScannerModal(){
   hide("scannerModal");
+  hide("shootingTip");
   document.documentElement.classList.remove("scan-open");
   document.body.classList.remove("scan-open");
   state.torchOn=false;
@@ -202,14 +207,15 @@ function updateModeUI(){
 }
 function updateFocusControl(supported,busy){
   var btn=$("focusBtn");if(!btn)return;
-  btn.classList.toggle("control-active",!!supported&&!busy);btn.classList.toggle("control-busy",!!busy);
-  btn.setAttribute("aria-pressed",supported?"true":"false");
-  btn.innerHTML='<span aria-hidden="true">'+(busy?"◌":"◎")+'</span><b>'+(busy?"초점 맞추는 중":supported?"자동 초점 ON":"기기 기본 초점")+"</b>";
+  var enabled=!!state.autoFocusEnabled;
+  btn.classList.toggle("control-active",enabled);btn.classList.toggle("control-busy",!!busy);
+  btn.setAttribute("aria-pressed",enabled?"true":"false");
+  btn.innerHTML='<span class="toggle-icon" aria-hidden="true">'+(busy?"◌":"◎")+'</span><b>'+(busy?"초점 설정 중":"자동 초점")+'</b><span class="control-switch" aria-hidden="true"><i></i></span>';
 }
 function updateTorchControl(){
   var btn=$("torchBtn");if(!btn)return;
   btn.classList.toggle("torch-active",!!state.torchOn);btn.setAttribute("aria-pressed",state.torchOn?"true":"false");
-  btn.innerHTML='<span aria-hidden="true">✦</span><b>'+(state.torchOn?"조명 끄기":"조명 켜기")+"</b>";
+  btn.innerHTML='<span class="toggle-icon" aria-hidden="true">ϟ</span><b>카메라 조명</b><span class="control-switch" aria-hidden="true"><i></i></span>';
 }
 function setupCameraControls(){
   hide("torchBtn");hide("zoomWrap");hide("quickZoom");state.cameraCapabilities=null;
@@ -811,6 +817,7 @@ function clearAutoFocusMonitor(){
   state.autoFocusTimer=0;state.autoFocusSupported=false;state.focusPending=false;state.androidBlurCount=0;state.androidFocusKickCount=0;state.lastAndroidFocusKick=0;
 }
 async function maintainContinuousFocus(force){
+  if(!state.autoFocusEnabled)return false;
   var info=state.cameraCapabilities;if(!info||!info.track||info.track.readyState==="ended")return false;
   var caps=info.caps||{},settings=info.track.getSettings?info.track.getSettings():{},focusModes=Array.isArray(caps.focusMode)?caps.focusMode:[];
   var supported=navigator.mediaDevices&&navigator.mediaDevices.getSupportedConstraints?navigator.mediaDevices.getSupportedConstraints():{};
@@ -826,19 +833,28 @@ async function maintainContinuousFocus(force){
   if(Array.isArray(caps.whiteBalanceMode)&&caps.whiteBalanceMode.indexOf("continuous")>=0&&(force||settings.whiteBalanceMode!=="continuous"))await applyOne("whiteBalanceMode","continuous");
   return state.autoFocusSupported;
 }
+async function disableAutomaticFocus(){
+  clearAutoFocusMonitor();
+  var info=state.cameraCapabilities;if(!info||!info.track||info.track.readyState==="ended")return false;
+  var modes=Array.isArray((info.caps||{}).focusMode)?info.caps.focusMode:[];
+  var mode=modes.indexOf("manual")>=0?"manual":modes.indexOf("fixed")>=0?"fixed":"";
+  if(!mode)return false;
+  try{await info.track.applyConstraints({advanced:[{focusMode:mode}]});return true;}catch(e){console.warn("focus off unsupported",e);return false;}
+}
 function isAndroidDevice(){return /Android/i.test(navigator.userAgent||"");}
 async function startAutoFocusMonitor(){
   clearAutoFocusMonitor();
+  if(!state.autoFocusEnabled){updateFocusControl(false,false);return false;}
   var supported=await maintainContinuousFocus(true);
   updateFocusControl(supported,false);
   text("qualityStatus",supported?"연속 자동초점 활성 · 코드를 중앙에 맞춰 주세요.":"기기 기본 자동초점 활성 · 코드를 중앙에 맞춰 주세요.");
   $("qualityStatus").className="quality-status good";
   if(isAndroidDevice()){
-    setTimeout(function(){if(state.scanning)requestFocus();},450);
-    setTimeout(function(){if(state.scanning)maintainContinuousFocus(true);},1300);
+    setTimeout(function(){if(state.scanning&&state.autoFocusEnabled)requestFocus();},450);
+    setTimeout(function(){if(state.scanning&&state.autoFocusEnabled)maintainContinuousFocus(true);},1300);
   }
   state.autoFocusTimer=setInterval(function(){
-    if(!state.scanning)return;
+    if(!state.scanning||!state.autoFocusEnabled)return;
     maintainContinuousFocus(false);
     if(isAndroidDevice()){
       var quality=state.quality||{},usableLight=quality.brightness>=35&&quality.brightness<=230;
@@ -874,7 +890,7 @@ async function startScanner(){
     }
     var video=$("scannerVideo");video.srcObject=state.stream;await video.play();
     state.scanning=true;state.scanLocked=false;state.decodeBusy=false;state.frameIndex=0;state.decodeAttempts=0;state.decodeErrors=0;state.regionIndex=0;state.variantIndex=0;state.lastDecodeError="";state.scanStartedAt=performance.now();state.fastMissSince=state.scanStartedAt;state.decodeTimes=[];state.lastFrameSignature=null;state.nativeHit=null;state.zxingHit=null;
-    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 자동초점·다중 프레임 검증 활성","ready");setupCameraControls();await startAutoFocusMonitor();scanningLoop();
+    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · "+(state.autoFocusEnabled?"자동초점":"자동초점 OFF")+" · 다중 프레임 검증","ready");setupCameraControls();await startAutoFocusMonitor();scanningLoop();
   }catch(err){console.error(err);state.scanning=false;setScannerStatus("카메라 또는 WASM 엔진을 실행하지 못했습니다: "+(err.message||err),"error");}
 }
 function stopScanner(closeModal){
@@ -883,7 +899,7 @@ function stopScanner(closeModal){
   if(state.stream){state.stream.getTracks().forEach(function(t){t.stop();});state.stream=null;}
   var video=$("scannerVideo");if(video)video.srcObject=null;
   hide("torchBtn");hide("zoomWrap");
-  if(closeModal!==false)closeScannerModal();
+  if(closeModal!==false){state.autoFocusEnabled=true;closeScannerModal();}
   return Promise.resolve();
 }
 
@@ -1119,11 +1135,20 @@ $("cameraSelect").addEventListener("change",function(){
   stopScanner(false).then(startScanner);
 });
 $("focusBtn").addEventListener("click",async function(){
-  updateFocusControl(state.autoFocusSupported,true);
-  var focused=await requestFocus();if(focused)await waitMs(500);
-  var continuous=await maintainContinuousFocus(true);
-  updateFocusControl(continuous||focused,false);
-  toast(focused||continuous?"중앙 재초점 후 자동 초점을 유지합니다.":"기기 기본 자동초점을 사용합니다.");
+  if(state.autoFocusEnabled){
+    state.autoFocusEnabled=false;updateFocusControl(false,false);
+    var disabled=await disableAutomaticFocus();
+    text("qualityStatus",disabled?"자동 초점을 껐습니다.":"앱 자동초점 보정을 껐습니다.");$("qualityStatus").className="quality-status";
+    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 자동초점 OFF · 다중 프레임 검증","ready");
+    toast(disabled?"자동 초점을 껐습니다.":"앱의 자동초점 보정을 껐습니다.");
+  }else{
+    state.autoFocusEnabled=true;updateFocusControl(false,true);
+    var focused=await requestFocus();if(focused)await waitMs(500);
+    var continuous=await startAutoFocusMonitor();
+    updateFocusControl(continuous||focused,false);
+    setScannerStatus(stageLabel(state.stage)+" 인식 대기 · 자동초점 ON · 다중 프레임 검증","ready");
+    toast(focused||continuous?"자동 초점을 켰습니다.":"기기 기본 자동초점을 사용합니다.");
+  }
 });
 document.querySelectorAll("#quickZoom button").forEach(function(btn){btn.addEventListener("click",function(){
   if(!state.cameraCapabilities||!state.cameraCapabilities.track)return;var caps=state.cameraCapabilities.caps.zoom||{},v=Math.max(caps.min||1,Math.min(caps.max||1,Number(btn.dataset.zoom)));
