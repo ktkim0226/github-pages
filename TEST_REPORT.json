@@ -1,7 +1,12 @@
 {
   "checks": {
-    "app_version_1_0_18": true,
-    "cache_v1_0_18": true,
+    "app_version_1_0_19": true,
+    "cache_v1_0_19": true,
+    "android_text_copy_before_xlsx_share": true,
+    "android_file_only_share_payload": true,
+    "android_share_failure_download_fallback": true,
+    "iphone_combined_share_full_capability_check": true,
+    "iphone_combined_share_fallback": true,
     "relocation_office_ring_preserved_after_save": true,
     "relocation_slot_barcode_cleared_after_save": true,
     "relocation_preserved_fields_editable": true,
