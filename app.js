@@ -2,9 +2,10 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.20";
+var APP_VERSION="1.0.21";
 var pendingServiceWorker=null;
 var updateReloading=false;
+var preparedShareCache={};
 var RECORD_KEY="rss_records_v3";
 var CONFIG_KEY="rss_config_v4";
 
@@ -1080,43 +1081,50 @@ function updateShareButtonLabels(){
     button.textContent="카카오톡 파일+내용 공유";
   });
 }
-async function shareRecordText(filterType){
-  var content=buildShareText(filterType);if(!content)return;
+function shareFingerprint(filterType){
+  return filterType+"|"+state.records.filter(function(r){
+    return (r.workType||"신규 증설")===filterType;
+  }).map(function(r){return r.id||r.createdAt||"";}).join("|");
+}
+function prepareSharePayload(filterType){
+  var fingerprint=shareFingerprint(filterType),cached=preparedShareCache[filterType];
+  if(cached&&cached.fingerprint===fingerprint)return cached;
+  var content=buildShareText(filterType);if(!content)return null;
   var title=(filterType==="재배치"?"재배치":"신규 증설")+" 자산바코드";
-  var pkg=buildXlsxPackage(filterType);
-  var mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",file=null;
-  if(pkg){
-    try{file=new File([pkg.content],pkg.fileName,{type:mime});}
-    catch(e){console.warn("XLSX share file unavailable",e);}
-  }
+  var pkg=buildXlsxPackage(filterType);if(!pkg)return null;
+  var types=[
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/octet-stream",
+    "application/vnd.ms-excel"
+  ];
+  var files=[];
+  types.forEach(function(type){
+    try{files.push(new File([pkg.content],pkg.fileName,{type:type}));}catch(e){}
+  });
+  if(!files.length)return null;
+  cached={fingerprint:fingerprint,content:content,title:title,pkg:pkg,files:files,attempt:0};
+  preparedShareCache[filterType]=cached;return cached;
+}
+async function shareRecordText(filterType){
+  var prepared=prepareSharePayload(filterType);if(!prepared)return;
+  var content=prepared.content,title=prepared.title,pkg=prepared.pkg;
+  var mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   if(!navigator.share){
     var copied=await copyShareText(content);
     if(pkg){download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);}
     toast(copied?"내용을 복사하고 XLSX를 저장했습니다. 카카오톡에 붙여넣어 주세요.":"XLSX를 저장했지만 이 브라우저에서는 내용 공유를 지원하지 않습니다.");
     return;
   }
-  var combinedData=file?{title:title,text:content,files:[file]}:null;
-  if(combinedData){
-    try{
-      await navigator.share(combinedData);
-      commitXlsxSequence(pkg);
-      toast("공유 화면에서 카카오톡을 선택하면 XLSX 파일과 저장 내용이 함께 전달됩니다.");
-      return;
-    }catch(fileShareError){
-      if(fileShareError&&fileShareError.name==="AbortError"){toast("공유가 취소되었거나 선택한 앱에서 파일을 받지 못했습니다.");return;}
-      console.warn("combined file and text share unavailable",fileShareError);
-    }
-  }
   try{
-    await navigator.share({title:title,text:content});
-    if(pkg){download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);}
-    toast(pkg?"파일 결합 공유가 제한되어 내용은 공유하고 XLSX는 저장했습니다.":"카카오톡으로 저장 내용을 전달했습니다.");
+    var file=prepared.files[prepared.attempt%prepared.files.length];
+    await navigator.share({title:title,text:content,files:[file]});
+    commitXlsxSequence(pkg);delete preparedShareCache[filterType];
+    toast("공유 화면에서 카카오톡을 선택하면 XLSX 파일과 저장 내용이 함께 전달됩니다.");
   }catch(err){
-    if(err&&err.name==="AbortError")return;
-    console.error(err);
-    var copied=await copyShareText(content);
-    if(pkg){download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);}
-    toast(copied?"공유가 제한되어 내용을 복사하고 XLSX를 저장했습니다. 카카오톡에 붙여넣어 주세요.":"카카오톡 공유를 실행하지 못해 XLSX만 저장했습니다.");
+    prepared.attempt=(prepared.attempt+1)%prepared.files.length;
+    var errorName=err&&err.name?err.name:"UnknownError";
+    console.warn("combined share failed",errorName,err);
+    toast("공유 실행 실패 ("+errorName+"). 같은 버튼을 다시 누르면 다른 파일 형식으로 즉시 재시도합니다.");
   }
 }
 
@@ -1238,10 +1246,13 @@ $("closeRecordsPreviewBtn").addEventListener("click",closeRecordsPreview);
 $("previewBackBtn").addEventListener("click",closeRecordsPreview);
 $("recordsPreviewModal").addEventListener("click",function(e){if(e.target===$("recordsPreviewModal"))closeRecordsPreview();});
 $("previewCsvBtn").addEventListener("click",function(){exportXLSX(previewFilterType);});
+$("previewShareBtn").addEventListener("pointerdown",function(){prepareSharePayload(previewFilterType);});
 $("previewShareBtn").addEventListener("click",function(){shareRecordText(previewFilterType);});
 $("newCsvBtn").addEventListener("click",function(){exportXLSX("신규 증설");});
+$("newShareBtn").addEventListener("pointerdown",function(){prepareSharePayload("신규 증설");});
 $("newShareBtn").addEventListener("click",function(){shareRecordText("신규 증설");});
 $("relocationCsvBtn").addEventListener("click",function(){exportXLSX("재배치");});
+$("relocationShareBtn").addEventListener("pointerdown",function(){prepareSharePayload("재배치");});
 $("relocationShareBtn").addEventListener("click",function(){shareRecordText("재배치");});
 
 function environmentCheck(){
