@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.19";
+var APP_VERSION="1.0.20";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -1075,22 +1075,9 @@ async function copyShareText(content){
     var copied=document.execCommand&&document.execCommand("copy");area.remove();return !!copied;
   }catch(err){console.warn("clipboard fallback unavailable",err);return false;}
 }
-function copyShareTextSync(content){
-  try{
-    var area=document.createElement("textarea");area.value=content;area.setAttribute("readonly","");
-    area.style.position="fixed";area.style.left="-9999px";area.style.opacity="0";
-    document.body.appendChild(area);area.focus();area.select();area.setSelectionRange(0,area.value.length);
-    var copied=document.execCommand&&document.execCommand("copy");area.remove();return !!copied;
-  }catch(err){console.warn("synchronous clipboard fallback unavailable",err);return false;}
-}
-function canShareData(data){
-  try{return !navigator.canShare||navigator.canShare(data);}
-  catch(e){console.warn("share capability check failed",e);return false;}
-}
 function updateShareButtonLabels(){
-  var android=isAndroidDevice();
   document.querySelectorAll(".kakao-share").forEach(function(button){
-    button.textContent=android?"카카오톡 XLSX 공유+내용 복사":"카카오톡 파일+내용 공유";
+    button.textContent="카카오톡 파일+내용 공유";
   });
 }
 async function shareRecordText(filterType){
@@ -1102,24 +1089,6 @@ async function shareRecordText(filterType){
     try{file=new File([pkg.content],pkg.fileName,{type:mime});}
     catch(e){console.warn("XLSX share file unavailable",e);}
   }
-  if(isAndroidDevice()){
-    var androidCopied=copyShareTextSync(content);
-    if(file&&navigator.share&&canShareData({files:[file]})){
-      try{
-        await navigator.share({files:[file]});
-        if(!androidCopied)androidCopied=await copyShareText(content);
-        commitXlsxSequence(pkg);
-        toast(androidCopied?"XLSX를 공유했습니다. 카카오톡 채팅창에 내용을 붙여넣어 주세요.":"XLSX를 공유했지만 내용 복사는 제한되었습니다.");
-        return;
-      }catch(androidShareError){
-        console.warn("Android XLSX file share unavailable",androidShareError);
-      }
-    }
-    if(!androidCopied)androidCopied=await copyShareText(content);
-    if(pkg){download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);}
-    toast(androidCopied?"XLSX를 저장하고 내용을 복사했습니다. 카카오톡에 파일을 첨부한 뒤 내용을 붙여넣어 주세요.":"XLSX를 저장했지만 내용 복사는 제한되었습니다.");
-    return;
-  }
   if(!navigator.share){
     var copied=await copyShareText(content);
     if(pkg){download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);}
@@ -1127,14 +1096,14 @@ async function shareRecordText(filterType){
     return;
   }
   var combinedData=file?{title:title,text:content,files:[file]}:null;
-  if(combinedData&&canShareData(combinedData)){
+  if(combinedData){
     try{
       await navigator.share(combinedData);
       commitXlsxSequence(pkg);
-      toast("카카오톡으로 XLSX 파일과 저장 내용을 함께 전달했습니다.");
+      toast("공유 화면에서 카카오톡을 선택하면 XLSX 파일과 저장 내용이 함께 전달됩니다.");
       return;
     }catch(fileShareError){
-      if(fileShareError&&fileShareError.name==="AbortError"){toast("공유를 취소했습니다.");return;}
+      if(fileShareError&&fileShareError.name==="AbortError"){toast("공유가 취소되었거나 선택한 앱에서 파일을 받지 못했습니다.");return;}
       console.warn("combined file and text share unavailable",fileShareError);
     }
   }
