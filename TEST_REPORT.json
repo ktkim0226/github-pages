@@ -1,7 +1,11 @@
 {
   "checks": {
-    "app_version_1_0_17": true,
-    "cache_v1_0_17": true,
+    "app_version_1_0_18": true,
+    "cache_v1_0_18": true,
+    "relocation_office_ring_preserved_after_save": true,
+    "relocation_slot_barcode_cleared_after_save": true,
+    "relocation_preserved_fields_editable": true,
+    "relocation_full_reset_preserved": true,
     "tap_focus_cover_coordinate_mapping": true,
     "tap_focus_point_of_interest": true,
     "tap_focus_safe_center_fallback": true,

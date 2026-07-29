@@ -1,4 +1,4 @@
-# v1.0.17 테스트 결과
+# v1.0.18 테스트 결과
 
 - JavaScript 문법 검사: PASS
 - HTML ID 중복 검사: PASS
@@ -11,7 +11,11 @@
 - UPS/M12 유니트 2단계 선택: PASS
 - 기존 V13 저장 데이터 키 호환: PASS
 - 작업유형 포함 XLSX: PASS
-- 서비스 워커 v1.0.17 캐시: PASS
+- 서비스 워커 v1.0.18 캐시: PASS
+- 재배치 저장 후 전·후 국사 및 링 유지: PASS
+- 재배치 저장 후 전·후 Slot 및 유니트바코드 초기화: PASS
+- 재배치 유지 정보 사용자 수정 가능: PASS
+- 재배치 전체 입력값 초기화 버튼 동작 유지: PASS
 - 화면 터치 위치→object-fit cover 영상 좌표 변환: PASS
 - pointsOfInterest 지원 기기 터치 좌표 초점: PASS
 - 터치 좌표 초점 미지원 시 중앙·연속 자동초점 대체: PASS
