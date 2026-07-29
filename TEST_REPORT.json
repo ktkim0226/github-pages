@@ -1,7 +1,12 @@
 {
   "checks": {
-    "app_version_1_0_16": true,
-    "cache_v1_0_16": true,
+    "app_version_1_0_17": true,
+    "cache_v1_0_17": true,
+    "tap_focus_cover_coordinate_mapping": true,
+    "tap_focus_point_of_interest": true,
+    "tap_focus_safe_center_fallback": true,
+    "tap_focus_marker": true,
+    "camera_toggle_labels_enlarged": true,
     "no_missing_dom_ids": true,
     "no_duplicate_ids": true,
     "large_reader_css": true,

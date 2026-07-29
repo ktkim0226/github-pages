@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.16";
+var APP_VERSION="1.0.17";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var RECORD_KEY="rss_records_v3";
@@ -789,14 +789,33 @@ function populateCameraSelect(devices,selectedId){
   state.videoDevices.forEach(function(d,i){var o=document.createElement("option");o.value=d.deviceId;o.textContent=d.label||("카메라 "+(i+1));sel.appendChild(o);});
   sel.value=selectedId||"";
 }
-async function requestFocus(){
+function focusPointFromPointer(event){
+  var video=$("scannerVideo"),wrap=$("readerWrap");
+  if(!video||!wrap||!video.videoWidth||!video.videoHeight)return null;
+  var rect=wrap.getBoundingClientRect(),scale=Math.max(rect.width/video.videoWidth,rect.height/video.videoHeight);
+  var renderedWidth=video.videoWidth*scale,renderedHeight=video.videoHeight*scale;
+  var cropX=(renderedWidth-rect.width)/2,cropY=(renderedHeight-rect.height)/2;
+  return {
+    x:Math.max(0,Math.min(1,((event.clientX-rect.left)+cropX)/renderedWidth)),
+    y:Math.max(0,Math.min(1,((event.clientY-rect.top)+cropY)/renderedHeight)),
+    left:Math.max(0,Math.min(rect.width,event.clientX-rect.left)),
+    top:Math.max(0,Math.min(rect.height,event.clientY-rect.top))
+  };
+}
+function showFocusPoint(point){
+  var marker=$("tapFocusMarker");if(!marker||!point)return;
+  marker.style.left=point.left+"px";marker.style.top=point.top+"px";
+  marker.classList.remove("focus-visible");void marker.offsetWidth;marker.classList.add("focus-visible");
+  clearTimeout(showFocusPoint.t);showFocusPoint.t=setTimeout(function(){marker.classList.remove("focus-visible");},900);
+}
+async function requestFocus(point){
   var info=state.cameraCapabilities;if(!info||!info.track)return false;var caps=info.caps||{};
   try{
     var modes=Array.isArray(caps.focusMode)?caps.focusMode:[];
     var supported=navigator.mediaDevices&&navigator.mediaDevices.getSupportedConstraints?navigator.mediaDevices.getSupportedConstraints():{};
     var pointApplied=false;
     if(supported.pointsOfInterest){
-      try{await info.track.applyConstraints({advanced:[{pointsOfInterest:[{x:.5,y:.5}]}]});pointApplied=true;}catch(e){}
+      try{await info.track.applyConstraints({advanced:[{pointsOfInterest:[{x:point&&Number.isFinite(point.x)?point.x:.5,y:point&&Number.isFinite(point.y)?point.y:.5}]}]});pointApplied=true;}catch(e){}
     }
     var canTryFocus=modes.length||supported.focusMode||pointApplied;
     if(!canTryFocus)return false;
@@ -1133,6 +1152,20 @@ $("cameraSelect").addEventListener("change",function(){
   state.selectedCameraId=this.value;
   if(!state.selectedCameraId)state.autoSelectedCameraId="";
   stopScanner(false).then(startScanner);
+});
+$("readerWrap").addEventListener("pointerup",async function(event){
+  if(!state.scanning||!state.autoFocusEnabled||state.focusPending||event.isPrimary===false)return;
+  var point=focusPointFromPointer(event);if(!point)return;
+  showFocusPoint(point);
+  var focused=await requestFocus(point);
+  if(!focused)focused=await requestFocus();
+  if(focused){
+    setScannerStatus(stageLabel(state.stage)+" 터치 초점 적용 · 다중 프레임 검증","ready");
+    setTimeout(function(){if(state.scanning)maintainContinuousFocus(true);},700);
+  }else{
+    await maintainContinuousFocus(true);
+    text("qualityStatus","기기 기본 자동초점으로 중앙을 다시 맞춥니다.");$("qualityStatus").className="quality-status good";
+  }
 });
 $("focusBtn").addEventListener("click",async function(){
   if(state.autoFocusEnabled){
