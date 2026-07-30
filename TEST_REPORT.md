@@ -1,4 +1,4 @@
-# v1.0.21 테스트 결과
+# v1.0.22 테스트 결과
 
 - JavaScript 문법 검사: PASS
 - HTML ID 중복 검사: PASS
@@ -11,13 +11,16 @@
 - UPS/M12 유니트 2단계 선택: PASS
 - 기존 V13 저장 데이터 키 호환: PASS
 - 작업유형 포함 XLSX: PASS
-- 서비스 워커 v1.0.21 캐시: PASS
+- 서비스 워커 v1.0.22 캐시: PASS
 - pointerdown 공유 데이터 사전 준비: PASS
-- click 시 navigator.share 즉시 호출: PASS
-- 공유 전 클립보드 복사·다운로드·await 미실행: PASS
-- Android/iPhone 공통 title·text·files 결합 공유: PASS
-- XLSX MIME 3종 순차 재시도: PASS
-- 공유 실패 오류명 표시 및 준비 데이터 유지: PASS
+- Android에서 navigator.share 미호출: PASS
+- Android에서 내용 복사 후 XLSX 저장: PASS
+- Android용 공유 버튼 문구 자동 변경: PASS
+- iPhone 등 지원 환경 title·text·files 결합 공유 유지: PASS
+- navigator.canShare 사전 검사: PASS
+- 결합 공유 실패 시 내용 복사·XLSX 저장 자동 전환: PASS
+- 공유 실패 오류명 미노출: PASS
+- 사용자가 공유창을 닫은 AbortError에서 중복 저장 방지: PASS
 - 재배치 저장 후 전·후 국사 및 링 유지: PASS
 - 재배치 저장 후 전·후 Slot 및 유니트바코드 초기화: PASS
 - 재배치 유지 정보 사용자 수정 가능: PASS

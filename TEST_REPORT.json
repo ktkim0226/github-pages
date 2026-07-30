@@ -1,13 +1,12 @@
 {
   "checks": {
-    "app_version_1_0_21": true,
-    "cache_v1_0_21": true,
+    "app_version_1_0_22": true,
+    "cache_v1_0_22": true,
     "share_pointerdown_preparation": true,
-    "share_click_immediate_api_call": true,
-    "no_async_copy_or_download_before_share": true,
+    "android_share_api_bypassed": true,
+    "android_copy_and_xlsx_download": true,
     "combined_share_title_text_files": true,
-    "xlsx_mime_retry_variants": true,
-    "share_error_name_and_retry_cache": true,
+    "combined_share_failure_safe_fallback": true,
     "relocation_office_ring_preserved_after_save": true,
     "relocation_slot_barcode_cleared_after_save": true,
     "relocation_preserved_fields_editable": true,

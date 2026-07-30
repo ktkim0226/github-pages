@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.21";
+var APP_VERSION="1.0.22";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var preparedShareCache={};
@@ -1078,7 +1078,7 @@ async function copyShareText(content){
 }
 function updateShareButtonLabels(){
   document.querySelectorAll(".kakao-share").forEach(function(button){
-    button.textContent="카카오톡 파일+내용 공유";
+    button.textContent=isAndroidDevice()?"내용 복사 + XLSX 저장":"카카오톡 파일+내용 공유";
   });
 }
 function shareFingerprint(filterType){
@@ -1109,22 +1109,33 @@ async function shareRecordText(filterType){
   var prepared=prepareSharePayload(filterType);if(!prepared)return;
   var content=prepared.content,title=prepared.title,pkg=prepared.pkg;
   var mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  if(!navigator.share){
+  async function fallbackToCopyAndDownload(){
     var copied=await copyShareText(content);
     if(pkg){download(pkg.fileName,pkg.content,mime);commitXlsxSequence(pkg);}
+    delete preparedShareCache[filterType];
     toast(copied?"내용을 복사하고 XLSX를 저장했습니다. 카카오톡에 붙여넣어 주세요.":"XLSX를 저장했지만 이 브라우저에서는 내용 공유를 지원하지 않습니다.");
+  }
+  if(isAndroidDevice()||!navigator.share){
+    await fallbackToCopyAndDownload();
     return;
   }
+  var file=prepared.files[0];
+  if(navigator.canShare){
+    try{
+      if(!navigator.canShare({files:[file]})){await fallbackToCopyAndDownload();return;}
+    }catch(canShareError){
+      console.warn("file share capability check failed",canShareError);
+      await fallbackToCopyAndDownload();return;
+    }
+  }
   try{
-    var file=prepared.files[prepared.attempt%prepared.files.length];
     await navigator.share({title:title,text:content,files:[file]});
     commitXlsxSequence(pkg);delete preparedShareCache[filterType];
     toast("공유 화면에서 카카오톡을 선택하면 XLSX 파일과 저장 내용이 함께 전달됩니다.");
   }catch(err){
-    prepared.attempt=(prepared.attempt+1)%prepared.files.length;
-    var errorName=err&&err.name?err.name:"UnknownError";
-    console.warn("combined share failed",errorName,err);
-    toast("공유 실행 실패 ("+errorName+"). 같은 버튼을 다시 누르면 다른 파일 형식으로 즉시 재시도합니다.");
+    if(err&&err.name==="AbortError")return;
+    console.warn("combined share failed; using safe fallback",err);
+    await fallbackToCopyAndDownload();
   }
 }
 
