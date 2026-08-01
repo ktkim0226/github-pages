@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="자산바코드 스캐너">
-  <title>자산바코드 스캐너 v1.0.22</title>
+  <title>자산바코드 스캐너 v1.0.23</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.0.22">
+  <link rel="stylesheet" href="./styles.css?v=1.0.23">
 </head>
 <body>
 <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
@@ -22,7 +22,7 @@
 <header>
   <div>
     <h1>자산바코드 스캐너</h1>
-    <p>신규 증설 또는 재배치 작업을 선택하여 등록 · v1.0.22</p>
+    <p>신규 증설 또는 재배치 작업을 선택하여 등록 · v1.0.23</p>
   </div>
 </header>
 
@@ -124,6 +124,10 @@
     <select id="unitName" disabled>
       <option value="">먼저 장비 카테고리를 선택하세요</option>
     </select>
+
+    <label for="manualUnitName">유니트명 직접 입력 <em>선택 목록에 없을 때</em></label>
+    <input id="manualUnitName" autocomplete="off" maxlength="80" placeholder="유니트명을 직접 입력하세요">
+    <p class="optional-note">직접 입력하면 장비 카테고리와 유니트명을 선택하지 않아도 저장할 수 있습니다.</p>
 
     <label for="memo">비고</label>
     <textarea id="memo" rows="3" placeholder="선택 입력"></textarea>
@@ -308,6 +312,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"
   crossorigin="anonymous"
   onerror="this.onerror=null;this.src='https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';"></script>
-<script src="./app.js?v=1.0.22"></script>
+<script src="./app.js?v=1.0.23"></script>
 </body>
 </html>

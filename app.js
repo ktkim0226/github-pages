@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.22";
+var APP_VERSION="1.0.23";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var preparedShareCache={};
@@ -413,16 +413,17 @@ function applyCode(value,format,manual){
 }
 
 function cancelSlot(){
-  state.slot="";$("slotCode").value="";$("wavelength").value="";$("slotNumber").value="";$("unitCategory").value="";populateUnitNames();$("memo").value="";
+  state.slot="";$("slotCode").value="";$("wavelength").value="";$("slotNumber").value="";$("unitCategory").value="";populateUnitNames();$("manualUnitName").value="";$("memo").value="";
   hide("slotSection");setStage("slot");
 }
 function saveSlot(){
   var slotNo=clean($("slotNumber").value);
-  var unitCategory=clean($("unitCategory").value),unitName=clean($("unitName").value);
+  var unitCategory=clean($("unitCategory").value),selectedUnitName=clean($("unitName").value),manualUnitName=clean($("manualUnitName").value);
+  var unitName=manualUnitName||selectedUnitName;
   if(!state.slot){toast("Slot 코드를 먼저 등록하세요.");return;}
   if(!/^[0-9A-F][0-9]{2}$/.test(slotNo)){toast("Slot Number는 첫 글자 0~9 또는 A~F, 뒤 두 자리는 숫자여야 합니다.");return;}
-  if(!unitCategory){toast("장비 카테고리를 선택하세요.");return;}
-  if(!unitName){toast("유니트명을 선택하세요.");return;}
+  if(!unitName){toast("유니트명을 선택하거나 직접 입력하세요.");return;}
+  if(selectedUnitName&&!unitCategory){toast("목록에서 선택하려면 장비 카테고리를 선택하세요.");return;}
   state.records.push({
     id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"신규 증설",
     ring:state.ring,office:state.office,
@@ -488,7 +489,7 @@ function resetCurrentInput(){
   stopScanner(true).then(function(){
     state.ring="";state.office="";state.rack="";state.shelf="";state.slot="";
     state.skipRack=false;state.skipShelf=false;state.stage="rack";state.started=false;
-    ["ringName","officeName","manualCode","slotCode","wavelength","slotNumber","unitCategory","memo"].forEach(function(id){
+    ["ringName","officeName","manualCode","slotCode","wavelength","slotNumber","unitCategory","manualUnitName","memo"].forEach(function(id){
       if($(id))$(id).value="";
     });
     populateUnitNames();
@@ -1241,6 +1242,7 @@ $("manualCode").addEventListener("input",function(){
   this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,64);
 });
 $("unitCategory").addEventListener("change",function(){populateUnitNames();});
+$("manualUnitName").addEventListener("input",function(){this.value=this.value.replace(/[\u0000-\u001F\u007F]/g,"").slice(0,80);});
 $("slotNumber").addEventListener("input",function(){
   this.value=this.value.toUpperCase().replace(/[^0-9A-F]/g,"").slice(0,3);
   if(this.value.length>1){
@@ -1278,7 +1280,7 @@ function hasUnsavedWork(){
   if(state.scanning||state.slot||state.rack||state.shelf)return true;
   var ids=state.workMode==="relocation"?
     ["beforeOffice","beforeRing","beforeSlot","beforeWavelength","relocationUnitCategory","relocationUnitName","unitBarcode","afterOffice","afterRing","afterSlot","afterWavelength","relocationMemo"]:
-    ["ringName","officeName","wavelength","slotNumber","unitCategory","unitName","memo","manualCode"];
+    ["ringName","officeName","wavelength","slotNumber","unitCategory","unitName","manualUnitName","memo","manualCode"];
   return ids.some(function(id){var el=$(id);return el&&clean(el.value);});
 }
 function showUpdateAvailable(worker,remoteVersion){
@@ -1298,7 +1300,7 @@ async function resetInputsForUpdate(){
   }else{
     state.ring="";state.office="";state.rack="";state.shelf="";state.slot="";
     state.skipRack=false;state.skipShelf=false;state.stage="rack";state.started=false;
-    ["ringName","officeName","manualCode","slotCode","wavelength","slotNumber","unitCategory","memo"].forEach(function(id){if($(id))$(id).value="";});
+    ["ringName","officeName","manualCode","slotCode","wavelength","slotNumber","unitCategory","manualUnitName","memo"].forEach(function(id){if($(id))$(id).value="";});
     populateUnitNames();$("skipRack").checked=false;$("skipShelf").checked=false;
     hide("workflowSection");hide("slotSection");show("siteSection");show("startWorkBtn");hide("editWorkBtn");
   }

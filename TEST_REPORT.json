@@ -1,7 +1,11 @@
 {
   "checks": {
-    "app_version_1_0_22": true,
-    "cache_v1_0_22": true,
+    "app_version_1_0_23": true,
+    "cache_v1_0_23": true,
+    "new_manual_unit_name_input": true,
+    "manual_unit_name_without_selection": true,
+    "manual_unit_name_priority": true,
+    "manual_unit_name_reset": true,
     "share_pointerdown_preparation": true,
     "android_share_api_bypassed": true,
     "android_copy_and_xlsx_download": true,

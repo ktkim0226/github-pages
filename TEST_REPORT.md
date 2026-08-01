@@ -1,4 +1,4 @@
-# v1.0.22 테스트 결과
+# v1.0.23 테스트 결과
 
 - JavaScript 문법 검사: PASS
 - HTML ID 중복 검사: PASS
@@ -9,9 +9,13 @@
 - 재배치 전체 필드 선택 입력 처리: PASS
 - 재배치 유니트바코드 단일 카메라 반영: PASS
 - UPS/M12 유니트 2단계 선택: PASS
+- 신규 증설 유니트명 직접 입력: PASS
+- 카테고리·유니트 미선택 상태에서 직접 입력값 저장: PASS
+- 선택값과 직접 입력값 동시 존재 시 직접 입력값 우선: PASS
+- 저장·취소·입력 초기화 후 직접 입력값 초기화: PASS
 - 기존 V13 저장 데이터 키 호환: PASS
 - 작업유형 포함 XLSX: PASS
-- 서비스 워커 v1.0.22 캐시: PASS
+- 서비스 워커 v1.0.23 캐시: PASS
 - pointerdown 공유 데이터 사전 준비: PASS
 - Android에서 navigator.share 미호출: PASS
 - Android에서 내용 복사 후 XLSX 저장: PASS
