@@ -2,7 +2,7 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.23";
+var APP_VERSION="1.0.24";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var preparedShareCache={};
@@ -355,14 +355,15 @@ function selectWorkMode(mode){
   hide("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});
 }
 function changeWorkMode(){stopScanner(true);state.workMode="";state.started=false;show("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});}
-function clearRelocationForm(){["beforeOffice","beforeRing","beforeSlot","beforeWavelength","afterOffice","afterRing","afterSlot","afterWavelength","unitBarcode","relocationMemo","relocationUnitCategory"].forEach(function(id){$(id).value="";});populateRelocationUnitNames();}
+function clearRelocationForm(){["beforeOffice","beforeRing","beforeSlot","beforeWavelength","afterOffice","afterRing","afterSlot","afterWavelength","unitBarcode","relocationMemo","relocationUnitCategory","relocationManualUnitName"].forEach(function(id){$(id).value="";});populateRelocationUnitNames();}
 function prepareNextRelocation(){
   ["beforeSlot","afterSlot","unitBarcode"].forEach(function(id){$(id).value="";});
   state.stage="unitBarcode";
   $("beforeSlot").focus();
 }
 function saveRelocation(){
-  state.records.push({id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"재배치",beforeOffice:clean($("beforeOffice").value),beforeRing:clean($("beforeRing").value),beforeSlot:clean($("beforeSlot").value),beforeWavelength:clean($("beforeWavelength").value),unitCategory:clean($("relocationUnitCategory").value),unitName:clean($("relocationUnitName").value),unitBarcode:clean($("unitBarcode").value),afterOffice:clean($("afterOffice").value),afterRing:clean($("afterRing").value),afterSlot:clean($("afterSlot").value),afterWavelength:clean($("afterWavelength").value),memo:clean($("relocationMemo").value),createdAt:new Date().toLocaleString(),ring:"",office:"",rack:"",shelf:"",slot:"",wavelength:"",slotNumber:""});
+  var selectedUnitName=clean($("relocationUnitName").value),manualUnitName=clean($("relocationManualUnitName").value);
+  state.records.push({id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"재배치",beforeOffice:clean($("beforeOffice").value),beforeRing:clean($("beforeRing").value),beforeSlot:clean($("beforeSlot").value),beforeWavelength:clean($("beforeWavelength").value),unitCategory:clean($("relocationUnitCategory").value),unitName:manualUnitName||selectedUnitName,unitBarcode:clean($("unitBarcode").value),afterOffice:clean($("afterOffice").value),afterRing:clean($("afterRing").value),afterSlot:clean($("afterSlot").value),afterWavelength:clean($("afterWavelength").value),memo:clean($("relocationMemo").value),createdAt:new Date().toLocaleString(),ring:"",office:"",rack:"",shelf:"",slot:"",wavelength:"",slotNumber:""});
   prepareNextRelocation();saveLocal();renderRecords();toast("저장했습니다. 국사·링 정보는 유지되며 Slot과 바코드만 새로 입력하세요.");
 }
 function startUnitBarcodeScan(){state.stage="unitBarcode";startScanner();}
@@ -1149,6 +1150,7 @@ $("scanUnitBarcodeBtn").addEventListener("click",startUnitBarcodeScan);
 $("saveRelocationBtn").addEventListener("click",saveRelocation);
 $("resetRelocationBtn").addEventListener("click",function(){clearRelocationForm();toast("재배치 입력값을 초기화했습니다.");});
 $("relocationUnitCategory").addEventListener("change",function(){populateRelocationUnitNames();});
+$("relocationManualUnitName").addEventListener("input",function(){this.value=this.value.replace(/[\u0000-\u001F\u007F]/g,"").slice(0,80);});
 $("unitBarcode").addEventListener("input",function(){this.value=this.value.toUpperCase().replace(/[\u0000-\u001F\u007F]/g,"").slice(0,128);});
 $("startWorkBtn").addEventListener("click",startWork);
 $("editWorkBtn").addEventListener("click",editWork);
@@ -1279,7 +1281,7 @@ function environmentCheck(){
 function hasUnsavedWork(){
   if(state.scanning||state.slot||state.rack||state.shelf)return true;
   var ids=state.workMode==="relocation"?
-    ["beforeOffice","beforeRing","beforeSlot","beforeWavelength","relocationUnitCategory","relocationUnitName","unitBarcode","afterOffice","afterRing","afterSlot","afterWavelength","relocationMemo"]:
+    ["beforeOffice","beforeRing","beforeSlot","beforeWavelength","relocationUnitCategory","relocationUnitName","relocationManualUnitName","unitBarcode","afterOffice","afterRing","afterSlot","afterWavelength","relocationMemo"]:
     ["ringName","officeName","wavelength","slotNumber","unitCategory","unitName","manualUnitName","memo","manualCode"];
   return ids.some(function(id){var el=$(id);return el&&clean(el.value);});
 }
