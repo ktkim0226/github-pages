@@ -2,11 +2,12 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.26";
+var APP_VERSION="1.0.28";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var preparedShareCache={};
 var editingRelocationId="";
+var editingNewRecordId="";
 var RECORD_KEY="rss_records_v3";
 var CONFIG_KEY="rss_config_v4";
 
@@ -308,10 +309,25 @@ function renderRecords(){
     if(type==="재배치")relocationRows.push({r:r,index:originalIndex});else newRows.push({r:r,index:originalIndex});
   });
   text("newRecordCount",String(newRows.length));text("relocationRecordCount",String(relocationRows.length));
-  $("newRecordBody").innerHTML=newRows.map(function(item,i){var r=item.r;return "<tr><td>"+(i+1)+"</td><td>"+esc(locationText(r.office,r.ring,"",""))+"</td><td>"+esc(r.rack||"")+"</td><td>"+esc(r.shelf||"")+"</td><td>"+esc(r.slotNumber||r.slot||"")+"</td><td>"+esc(r.wavelength||"")+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||r.slot||"")+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></td></tr>";}).join("");
-  $("relocationRecordBody").innerHTML=relocationRows.map(function(item,i){var r=item.r;var completed=!!(clean(r.afterOffice)||clean(r.afterRing)||clean(r.afterSlot)||clean(r.afterWavelength));return "<tr"+(editingRelocationId===r.id?" class='editing-row'":"")+"><td>"+(i+1)+"</td><td class='before-cell'>"+esc(locationText(r.beforeOffice,r.beforeRing,r.beforeSlot,r.beforeWavelength))+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||"")+"</td><td class='after-cell'>"+esc(locationText(r.afterOffice,r.afterRing,r.afterSlot,r.afterWavelength))+"</td><td><span class='record-status "+(completed?"complete":"pending")+"'>"+(completed?"재배치 완료":"재배치 전 저장")+"</span></td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.updatedAt||r.createdAt||"")+"</td><td><div class='row-actions'><button class='load-relocation-row' data-id='"+esc(r.id||"")+"' type='button'>불러오기</button><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></div></td></tr>";}).join("");
+  $("deleteAllNewBtn").disabled=!newRows.length;$("deleteAllRelocationBtn").disabled=!relocationRows.length;
+  $("newRecordBody").innerHTML=newRows.map(function(item,i){var r=item.r;return "<tr class='selectable-record-row"+(editingNewRecordId===r.id?" editing-row":"")+"' tabindex='0' role='button' data-record-id='"+esc(r.id||"")+"' data-record-type='new' aria-label='신규 증설 데이터 불러오기'><td>"+(i+1)+"</td><td>"+esc(locationText(r.office,r.ring,"",""))+"</td><td>"+esc(r.rack||"")+"</td><td>"+esc(r.shelf||"")+"</td><td>"+esc(r.slotNumber||r.slot||"")+"</td><td>"+esc(r.wavelength||"")+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||r.slot||"")+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.updatedAt||r.createdAt||"")+"</td><td><div class='row-actions'><button class='load-new-row' data-id='"+esc(r.id||"")+"' type='button'>불러오기</button><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></div></td></tr>";}).join("");
+  $("relocationRecordBody").innerHTML=relocationRows.map(function(item,i){var r=item.r;var completed=!!(clean(r.afterOffice)||clean(r.afterRing)||clean(r.afterSlot)||clean(r.afterWavelength));return "<tr class='selectable-record-row"+(editingRelocationId===r.id?" editing-row":"")+"' tabindex='0' role='button' data-record-id='"+esc(r.id||"")+"' data-record-type='relocation' aria-label='재배치 데이터 불러오기'><td>"+(i+1)+"</td><td class='before-cell'>"+esc(locationText(r.beforeOffice,r.beforeRing,r.beforeSlot,r.beforeWavelength))+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||"")+"</td><td class='after-cell'>"+esc(locationText(r.afterOffice,r.afterRing,r.afterSlot,r.afterWavelength))+"</td><td><span class='record-status "+(completed?"complete":"pending")+"'>"+(completed?"재배치 완료":"재배치 전 저장")+"</span></td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.updatedAt||r.createdAt||"")+"</td><td><div class='row-actions'><button class='load-relocation-row' data-id='"+esc(r.id||"")+"' type='button'>불러오기</button><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></div></td></tr>";}).join("");
+  document.querySelectorAll(".load-new-row").forEach(function(btn){btn.addEventListener("click",function(){loadNewRecord(btn.dataset.id);});});
   document.querySelectorAll(".load-relocation-row").forEach(function(btn){btn.addEventListener("click",function(){loadRelocationRecord(btn.dataset.id);});});
-  document.querySelectorAll(".delete-row").forEach(function(btn){btn.addEventListener("click",function(){var index=Number(btn.dataset.index),removed=state.records[index];state.records.splice(index,1);if(removed&&removed.id===editingRelocationId)clearRelocationForm();saveLocal();renderRecords();toast("삭제했습니다.");});});
+  document.querySelectorAll(".selectable-record-row").forEach(function(row){
+    function selectRow(event){if(event.target&&event.target.closest&&event.target.closest("button"))return;if(event.type==="keydown"&&event.key!=="Enter"&&event.key!==" ")return;if(event.type==="keydown")event.preventDefault();if(row.dataset.recordType==="relocation")loadRelocationRecord(row.dataset.recordId);else loadNewRecord(row.dataset.recordId);}
+    row.addEventListener("click",selectRow);row.addEventListener("keydown",selectRow);
+  });
+  document.querySelectorAll(".delete-row").forEach(function(btn){btn.addEventListener("click",function(){var index=Number(btn.dataset.index),removed=state.records[index];if(!removed)return;var type=(removed.workType||"신규 증설");if(!confirm(type+" 저장 데이터 1건을 삭제하시겠습니까?\n삭제한 데이터는 복구할 수 없습니다."))return;state.records.splice(index,1);if(removed.id===editingRelocationId)clearRelocationForm();if(removed.id===editingNewRecordId)cancelSlot();saveLocal();renderRecords();toast(type+" 데이터 1건을 삭제했습니다.");});});
+}
+function deleteAllRecordsByType(type){
+  var count=state.records.filter(function(r){return (r.workType||"신규 증설")===type;}).length;
+  if(!count){toast(type+" 저장 데이터가 없습니다.");return;}
+  if(!confirm(type+" 저장 데이터 "+count+"건을 모두 삭제하시겠습니까?\n삭제한 데이터는 복구할 수 없습니다."))return;
+  state.records=state.records.filter(function(r){return (r.workType||"신규 증설")!==type;});
+  if(type==="재배치"&&editingRelocationId)clearRelocationForm();
+  if(type==="신규 증설"&&editingNewRecordId)cancelSlot();
+  saveLocal();renderRecords();toast(type+" 저장 데이터 "+count+"건을 모두 삭제했습니다.");
 }
 function showRecordPanel(kind){
   var isNew=kind==="new";$("newRecordsTab").classList.toggle("active",isNew);$("relocationRecordsTab").classList.toggle("active",!isNew);$("newRecordsPanel").classList.toggle("hidden",!isNew);$("relocationRecordsPanel").classList.toggle("hidden",isNew);
@@ -356,7 +372,26 @@ function selectWorkMode(mode){
   document.querySelectorAll(".mode-choice").forEach(function(b){b.classList.toggle("active",(mode==="new"&&b.id==="newInstallModeBtn")||(mode==="relocation"&&b.id==="relocationModeBtn"));});
   hide("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});
 }
-function changeWorkMode(){stopScanner(true);state.workMode="";state.started=false;show("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});}
+function changeWorkMode(){stopScanner(true);setNewEditMode("");setRelocationEditMode("");state.workMode="";state.started=false;show("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});}
+function setNewEditMode(id){
+  editingNewRecordId=id||"";
+  text("saveSlotBtn",editingNewRecordId?"신규 증설 정보 수정 저장":"현재 Slot 저장 후 다음 Slot 스캔");
+  $("cancelNewEditBtn").classList.toggle("hidden",!editingNewRecordId);
+  $("newEditNotice").classList.toggle("hidden",!editingNewRecordId);
+}
+function loadNewRecord(id){
+  var record=state.records.find(function(r){return r.id===id&&(r.workType||"신규 증설")==="신규 증설";});
+  if(!record){toast("불러올 신규 증설 데이터를 찾지 못했습니다.");return;}
+  state.workMode="new";state.started=true;state.ring=clean(record.ring||"");state.office=clean(record.office||"");
+  state.skipRack=record.rack==="생략";state.skipShelf=record.shelf==="생략";state.rack=state.skipRack?"":clean(record.rack||"");state.shelf=state.skipShelf?"":clean(record.shelf||"");
+  state.slot=clean(record.slot||record.unitBarcode||"");state.stage="slot";
+  $("ringName").value=state.ring;$("officeName").value=state.office;$("skipRack").checked=state.skipRack;$("skipShelf").checked=state.skipShelf;
+  $("slotCode").value=state.slot;$("wavelength").value=clean(record.wavelength||"");$("slotNumber").value=clean(record.slotNumber||"");$("memo").value=clean(record.memo||"");
+  var category=UNIT_OPTIONS[record.unitCategory]?record.unitCategory:"";$("unitCategory").value=category;populateUnitNames(record.unitName||"");
+  $("manualUnitName").value=$("unitName").value===clean(record.unitName||"")?"":clean(record.unitName||"");
+  setNewEditMode(record.id);setRelocationEditMode("");updateUI();show("slotSection");showRecordPanel("new");renderRecords();
+  $("slotSection").scrollIntoView({behavior:"smooth",block:"start"});toast("저장된 신규 증설 정보를 불러왔습니다. 수정 후 저장하세요.");
+}
 function setRelocationEditMode(id){
   editingRelocationId=id||"";
   text("saveRelocationBtn",editingRelocationId?"재배치 정보 수정 저장":"재배치 정보 저장");
@@ -368,7 +403,7 @@ function setRelocationFormValue(id,value){$(id).value=clean(value||"");}
 function loadRelocationRecord(id){
   var record=state.records.find(function(r){return r.id===id&&(r.workType||"신규 증설")==="재배치";});
   if(!record){toast("불러올 재배치 데이터를 찾지 못했습니다.");return;}
-  state.workMode="relocation";state.stage="unitBarcode";
+  state.workMode="relocation";state.stage="unitBarcode";setNewEditMode("");
   ["beforeOffice","beforeRing","beforeSlot","beforeWavelength","afterOffice","afterRing","afterSlot","afterWavelength","unitBarcode","relocationMemo"].forEach(function(id){setRelocationFormValue(id,record[id]||record[id.replace("relocationMemo","memo")]);});
   var category=UNIT_OPTIONS[record.unitCategory]?record.unitCategory:"";
   $("relocationUnitCategory").value=category;populateRelocationUnitNames(record.unitName||"");
@@ -473,7 +508,7 @@ function applyCode(value,format,manual){
 
 function cancelSlot(){
   state.slot="";$("slotCode").value="";$("wavelength").value="";$("slotNumber").value="";$("unitCategory").value="";populateUnitNames();$("manualUnitName").value="";$("memo").value="";
-  hide("slotSection");setStage("slot");
+  setNewEditMode("");hide("slotSection");setStage("slot");
 }
 function saveSlot(){
   var slotNo=clean($("slotNumber").value);
@@ -483,16 +518,19 @@ function saveSlot(){
   if(!/^[0-9A-F][0-9]{2}$/.test(slotNo)){toast("Slot Number는 첫 글자 0~9 또는 A~F, 뒤 두 자리는 숫자여야 합니다.");return;}
   if(!unitName){toast("유니트명을 선택하거나 직접 입력하세요.");return;}
   if(selectedUnitName&&!unitCategory){toast("목록에서 선택하려면 장비 카테고리를 선택하세요.");return;}
-  state.records.push({
-    id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"신규 증설",
+  var editIndex=editingNewRecordId?state.records.findIndex(function(r){return r.id===editingNewRecordId;}):-1;
+  var previous=editIndex>=0?state.records[editIndex]:null,now=new Date().toLocaleString();
+  var record={
+    id:previous?previous.id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"신규 증설",
     ring:state.ring,office:state.office,
     rack:state.skipRack?"생략":state.rack,
     shelf:state.skipShelf?"생략":state.shelf,
     slot:state.slot,wavelength:clean($("wavelength").value),
     slotNumber:slotNo,unitCategory:unitCategory,unitName:unitName,unitBarcode:state.slot,
-    memo:clean($("memo").value),createdAt:new Date().toLocaleString()
-  });
-  cancelSlot();saveLocal();renderRecords();toast("저장했습니다. 다음 Slot을 스캔하세요.");
+    memo:clean($("memo").value),createdAt:previous&&previous.createdAt?previous.createdAt:now,updatedAt:previous?now:""
+  };
+  if(editIndex>=0)state.records[editIndex]=record;else state.records.push(record);
+  var updated=editIndex>=0;cancelSlot();saveLocal();renderRecords();toast(updated?"신규 증설 정보를 수정 저장했습니다.":"저장했습니다. 다음 Slot을 스캔하세요.");
 }
 
 function onScan(decodedText,decodedResult){
@@ -546,6 +584,7 @@ function applyEditedManual(){
 function resetCurrentInput(){
   if(!confirm("입력 중인 기본정보와 Rack·Shelf·Slot 값을 모두 초기화하시겠습니까?\\n저장된 XLSX 데이터는 삭제되지 않습니다."))return;
   stopScanner(true).then(function(){
+    setNewEditMode("");
     state.ring="";state.office="";state.rack="";state.shelf="";state.slot="";
     state.skipRack=false;state.skipShelf=false;state.stage="rack";state.started=false;
     ["ringName","officeName","manualCode","slotCode","wavelength","slotNumber","unitCategory","manualUnitName","memo"].forEach(function(id){
@@ -589,6 +628,7 @@ function getRegionRects(video){
   }else if(state.scanMode==="small"){
     centered("소형-중앙",0.72,0.72);centered("소형-강화",0.48,0.48);centered("소형-가로",0.78,0.42);
   }else{
+    setNewEditMode("");
     centered("자동-중앙",0.82,0.78);centered("자동-소형",0.54,0.58);centered("자동-가로",0.92,0.46);
   }
   return regions;
@@ -1311,9 +1351,12 @@ $("slotNumber").addEventListener("input",function(){
   }
 });
 $("saveSlotBtn").addEventListener("click",saveSlot);
+$("cancelNewEditBtn").addEventListener("click",function(){cancelSlot();toast("신규 증설 데이터 수정을 취소했습니다.");});
 $("cancelSlotBtn").addEventListener("click",cancelSlot);
 $("newRecordsTab").addEventListener("click",function(){showRecordPanel("new");});
 $("relocationRecordsTab").addEventListener("click",function(){showRecordPanel("relocation");});
+$("deleteAllNewBtn").addEventListener("click",function(){deleteAllRecordsByType("신규 증설");});
+$("deleteAllRelocationBtn").addEventListener("click",function(){deleteAllRecordsByType("재배치");});
 $("newPreviewBtn").addEventListener("click",function(){openRecordsPreview("신규 증설");});
 $("relocationPreviewBtn").addEventListener("click",function(){openRecordsPreview("재배치");});
 $("closeRecordsPreviewBtn").addEventListener("click",closeRecordsPreview);
@@ -1341,7 +1384,7 @@ function environmentCheck(){
 }
 function hasUnsavedWork(){
   if(state.scanning||state.slot||state.rack||state.shelf)return true;
-  if(editingRelocationId)return true;
+  if(editingRelocationId||editingNewRecordId)return true;
   var ids=state.workMode==="relocation"?
     ["beforeOffice","beforeRing","beforeSlot","beforeWavelength","relocationUnitCategory","relocationUnitName","relocationManualUnitName","unitBarcode","afterOffice","afterRing","afterSlot","afterWavelength","relocationMemo"]:
     ["ringName","officeName","wavelength","slotNumber","unitCategory","unitName","manualUnitName","memo","manualCode"];

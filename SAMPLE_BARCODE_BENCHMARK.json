@@ -1,5 +1,5 @@
 {
-  "version": "1.0.26",
+  "version": "1.0.28",
   "date": "2026-07-28",
   "environment": "warm ZXing-WASM 3.1.2, 1600px normalized input",
   "target_ms": 1000,
