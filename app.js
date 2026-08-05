@@ -2,10 +2,11 @@
 (function(){
 "use strict";
 
-var APP_VERSION="1.0.24";
+var APP_VERSION="1.0.26";
 var pendingServiceWorker=null;
 var updateReloading=false;
 var preparedShareCache={};
+var editingRelocationId="";
 var RECORD_KEY="rss_records_v3";
 var CONFIG_KEY="rss_config_v4";
 
@@ -307,9 +308,10 @@ function renderRecords(){
     if(type==="재배치")relocationRows.push({r:r,index:originalIndex});else newRows.push({r:r,index:originalIndex});
   });
   text("newRecordCount",String(newRows.length));text("relocationRecordCount",String(relocationRows.length));
-  $("newRecordBody").innerHTML=newRows.map(function(item,i){var r=item.r;return "<tr><td>"+(i+1)+"</td><td>"+esc(locationText(r.office,r.ring,"",""))+"</td><td>"+esc(r.rack||"")+"</td><td>"+esc(r.shelf||"")+"</td><td>"+esc(r.slotNumber||r.slot||"")+"</td><td>"+esc(r.wavelength||"")+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></td></tr>";}).join("");
-  $("relocationRecordBody").innerHTML=relocationRows.map(function(item,i){var r=item.r;return "<tr><td>"+(i+1)+"</td><td class='before-cell'>"+esc(locationText(r.beforeOffice,r.beforeRing,r.beforeSlot,r.beforeWavelength))+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||"")+"</td><td class='after-cell'>"+esc(locationText(r.afterOffice,r.afterRing,r.afterSlot,r.afterWavelength))+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></td></tr>";}).join("");
-  document.querySelectorAll(".delete-row").forEach(function(btn){btn.addEventListener("click",function(){state.records.splice(Number(btn.dataset.index),1);saveLocal();renderRecords();toast("삭제했습니다.");});});
+  $("newRecordBody").innerHTML=newRows.map(function(item,i){var r=item.r;return "<tr><td>"+(i+1)+"</td><td>"+esc(locationText(r.office,r.ring,"",""))+"</td><td>"+esc(r.rack||"")+"</td><td>"+esc(r.shelf||"")+"</td><td>"+esc(r.slotNumber||r.slot||"")+"</td><td>"+esc(r.wavelength||"")+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||r.slot||"")+"</td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.createdAt||"")+"</td><td><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></td></tr>";}).join("");
+  $("relocationRecordBody").innerHTML=relocationRows.map(function(item,i){var r=item.r;var completed=!!(clean(r.afterOffice)||clean(r.afterRing)||clean(r.afterSlot)||clean(r.afterWavelength));return "<tr"+(editingRelocationId===r.id?" class='editing-row'":"")+"><td>"+(i+1)+"</td><td class='before-cell'>"+esc(locationText(r.beforeOffice,r.beforeRing,r.beforeSlot,r.beforeWavelength))+"</td><td>"+esc(r.unitCategory||"")+"</td><td>"+esc(r.unitName||"")+"</td><td>"+esc(r.unitBarcode||"")+"</td><td class='after-cell'>"+esc(locationText(r.afterOffice,r.afterRing,r.afterSlot,r.afterWavelength))+"</td><td><span class='record-status "+(completed?"complete":"pending")+"'>"+(completed?"재배치 완료":"재배치 전 저장")+"</span></td><td>"+esc(r.memo||"")+"</td><td>"+esc(r.updatedAt||r.createdAt||"")+"</td><td><div class='row-actions'><button class='load-relocation-row' data-id='"+esc(r.id||"")+"' type='button'>불러오기</button><button class='delete-row' data-index='"+item.index+"' type='button'>삭제</button></div></td></tr>";}).join("");
+  document.querySelectorAll(".load-relocation-row").forEach(function(btn){btn.addEventListener("click",function(){loadRelocationRecord(btn.dataset.id);});});
+  document.querySelectorAll(".delete-row").forEach(function(btn){btn.addEventListener("click",function(){var index=Number(btn.dataset.index),removed=state.records[index];state.records.splice(index,1);if(removed&&removed.id===editingRelocationId)clearRelocationForm();saveLocal();renderRecords();toast("삭제했습니다.");});});
 }
 function showRecordPanel(kind){
   var isNew=kind==="new";$("newRecordsTab").classList.toggle("active",isNew);$("relocationRecordsTab").classList.toggle("active",!isNew);$("newRecordsPanel").classList.toggle("hidden",!isNew);$("relocationRecordsPanel").classList.toggle("hidden",isNew);
@@ -355,7 +357,26 @@ function selectWorkMode(mode){
   hide("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});
 }
 function changeWorkMode(){stopScanner(true);state.workMode="";state.started=false;show("modeGateSection");updateUI();window.scrollTo({top:0,behavior:"smooth"});}
-function clearRelocationForm(){["beforeOffice","beforeRing","beforeSlot","beforeWavelength","afterOffice","afterRing","afterSlot","afterWavelength","unitBarcode","relocationMemo","relocationUnitCategory","relocationManualUnitName"].forEach(function(id){$(id).value="";});populateRelocationUnitNames();}
+function setRelocationEditMode(id){
+  editingRelocationId=id||"";
+  text("saveRelocationBtn",editingRelocationId?"재배치 정보 수정 저장":"재배치 정보 저장");
+  $("cancelRelocationEditBtn").classList.toggle("hidden",!editingRelocationId);
+  $("relocationEditNotice").classList.toggle("hidden",!editingRelocationId);
+}
+function clearRelocationForm(){["beforeOffice","beforeRing","beforeSlot","beforeWavelength","afterOffice","afterRing","afterSlot","afterWavelength","unitBarcode","relocationMemo","relocationUnitCategory","relocationManualUnitName"].forEach(function(id){$(id).value="";});populateRelocationUnitNames();setRelocationEditMode("");}
+function setRelocationFormValue(id,value){$(id).value=clean(value||"");}
+function loadRelocationRecord(id){
+  var record=state.records.find(function(r){return r.id===id&&(r.workType||"신규 증설")==="재배치";});
+  if(!record){toast("불러올 재배치 데이터를 찾지 못했습니다.");return;}
+  state.workMode="relocation";state.stage="unitBarcode";
+  ["beforeOffice","beforeRing","beforeSlot","beforeWavelength","afterOffice","afterRing","afterSlot","afterWavelength","unitBarcode","relocationMemo"].forEach(function(id){setRelocationFormValue(id,record[id]||record[id.replace("relocationMemo","memo")]);});
+  var category=UNIT_OPTIONS[record.unitCategory]?record.unitCategory:"";
+  $("relocationUnitCategory").value=category;populateRelocationUnitNames(record.unitName||"");
+  $("relocationManualUnitName").value=$("relocationUnitName").value===clean(record.unitName||"")?"":clean(record.unitName||"");
+  setRelocationEditMode(record.id);updateUI();showRecordPanel("relocation");renderRecords();
+  $("relocationSection").scrollIntoView({behavior:"smooth",block:"start"});
+  toast("저장된 재배치 정보를 2. 재배치 정보 입력란에 불러왔습니다. 재배치 후 정보를 입력하고 수정 저장하세요.");
+}
 function prepareNextRelocation(){
   ["beforeSlot","afterSlot","unitBarcode"].forEach(function(id){$(id).value="";});
   state.stage="unitBarcode";
@@ -363,10 +384,47 @@ function prepareNextRelocation(){
 }
 function saveRelocation(){
   var selectedUnitName=clean($("relocationUnitName").value),manualUnitName=clean($("relocationManualUnitName").value);
-  state.records.push({id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"재배치",beforeOffice:clean($("beforeOffice").value),beforeRing:clean($("beforeRing").value),beforeSlot:clean($("beforeSlot").value),beforeWavelength:clean($("beforeWavelength").value),unitCategory:clean($("relocationUnitCategory").value),unitName:manualUnitName||selectedUnitName,unitBarcode:clean($("unitBarcode").value),afterOffice:clean($("afterOffice").value),afterRing:clean($("afterRing").value),afterSlot:clean($("afterSlot").value),afterWavelength:clean($("afterWavelength").value),memo:clean($("relocationMemo").value),createdAt:new Date().toLocaleString(),ring:"",office:"",rack:"",shelf:"",slot:"",wavelength:"",slotNumber:""});
-  prepareNextRelocation();saveLocal();renderRecords();toast("저장했습니다. 국사·링 정보는 유지되며 Slot과 바코드만 새로 입력하세요.");
+  var editIndex=editingRelocationId?state.records.findIndex(function(r){return r.id===editingRelocationId;}):-1;
+  var previous=editIndex>=0?state.records[editIndex]:null,now=new Date().toLocaleString();
+  var record={id:previous?previous.id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"재배치",beforeOffice:clean($("beforeOffice").value),beforeRing:clean($("beforeRing").value),beforeSlot:clean($("beforeSlot").value),beforeWavelength:clean($("beforeWavelength").value),unitCategory:clean($("relocationUnitCategory").value),unitName:manualUnitName||selectedUnitName,unitBarcode:clean($("unitBarcode").value),afterOffice:clean($("afterOffice").value),afterRing:clean($("afterRing").value),afterSlot:clean($("afterSlot").value),afterWavelength:clean($("afterWavelength").value),memo:clean($("relocationMemo").value),createdAt:previous&&previous.createdAt?previous.createdAt:now,updatedAt:previous?now:"",ring:"",office:"",rack:"",shelf:"",slot:"",wavelength:"",slotNumber:""};
+  if(editIndex>=0)state.records[editIndex]=record;else state.records.push(record);
+  var updated=editIndex>=0;setRelocationEditMode("");prepareNextRelocation();saveLocal();renderRecords();toast(updated?"재배치 정보를 수정 저장했습니다.":"저장했습니다. 국사·링 정보는 유지되며 Slot과 바코드만 새로 입력하세요.");
 }
 function startUnitBarcodeScan(){state.stage="unitBarcode";startScanner();}
+
+function relocationImportFingerprint(record){return [record.beforeOffice,record.beforeRing,record.beforeSlot,record.beforeWavelength,record.unitName,record.unitBarcode,record.afterOffice,record.afterRing,record.afterSlot,record.afterWavelength,record.createdAt].map(function(v){return clean(v||"");}).join("\u001f");}
+function parseRelocationSheetRows(rows){
+  var headerIndex=rows.findIndex(function(row){return clean(row[0])==="인프라"&&clean(row[1])==="설치국사"&&clean(row[5])==="모듈"&&clean(row[7])==="바코드";});
+  if(headerIndex<0)throw new Error("unsupported relocation format");
+  return rows.slice(headerIndex+1).map(function(row){
+    var values=[row[1],row[2],row[3],row[4],row[5],row[7],row[10],row[11],row[12],row[13],row[14]].map(function(v){return clean(v==null?"":String(v));});
+    if(!values.some(Boolean))return null;
+    return {beforeOffice:values[0],beforeRing:values[1],beforeSlot:values[2],beforeWavelength:values[3],unitName:values[4],unitBarcode:values[5],afterOffice:values[6],afterRing:values[7],afterSlot:values[8],afterWavelength:values[9],createdAt:values[10]};
+  }).filter(Boolean);
+}
+async function importRelocationXlsx(file){
+  if(!file)return;
+  if(file.size>10*1024*1024){toast("10MB 이하의 재배치 XLSX 파일을 선택하세요.");return;}
+  if(!window.XLSX||!XLSX.utils||typeof XLSX.read!=="function"){toast("XLSX 불러오기 모듈을 사용할 수 없습니다. 인터넷 연결 후 다시 시도해 주세요.");return;}
+  try{
+    var workbook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
+    var sheet=workbook.Sheets[workbook.SheetNames.indexOf("재배치")>=0?"재배치":workbook.SheetNames[0]];
+    if(!sheet)throw new Error("worksheet missing");
+    var rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false});
+    var parsedRows=parseRelocationSheetRows(rows);
+    var existing={};state.records.filter(function(r){return (r.workType||"신규 증설")==="재배치";}).forEach(function(r){existing[relocationImportFingerprint(r)]=true;});
+    var imported=[];
+    parsedRows.forEach(function(values){
+      var now=new Date().toLocaleString();
+      var record={id:String(Date.now())+"-"+Math.random().toString(16).slice(2),workType:"재배치",beforeOffice:values.beforeOffice,beforeRing:values.beforeRing,beforeSlot:values.beforeSlot,beforeWavelength:values.beforeWavelength,unitCategory:"",unitName:values.unitName,unitBarcode:values.unitBarcode,afterOffice:values.afterOffice,afterRing:values.afterRing,afterSlot:values.afterSlot,afterWavelength:values.afterWavelength,memo:"",createdAt:values.createdAt||now,updatedAt:"",ring:"",office:"",rack:"",shelf:"",slot:"",wavelength:"",slotNumber:""};
+      var key=relocationImportFingerprint(record);if(existing[key])return;existing[key]=true;state.records.push(record);imported.push(record);
+    });
+    if(!imported.length){toast("불러올 신규 재배치 데이터가 없습니다. 파일 양식 또는 중복 데이터를 확인하세요.");return;}
+    saveLocal();renderRecords();showRecordPanel("relocation");
+    if(imported.length===1)loadRelocationRecord(imported[0].id);
+    else{$("relocationRecordsPanel").scrollIntoView({behavior:"smooth",block:"start"});toast(imported.length+"건을 불러왔습니다. 수정할 데이터의 불러오기 버튼을 선택하세요.");}
+  }catch(err){console.error("relocation XLSX import failed",err);toast("재배치 XLSX를 불러오지 못했습니다. 이 앱에서 내보낸 재배치 파일인지 확인하세요.");}
+}
 
 function startWork(){
   var ring=clean($("ringName").value),office=clean($("officeName").value);
@@ -431,7 +489,7 @@ function saveSlot(){
     rack:state.skipRack?"생략":state.rack,
     shelf:state.skipShelf?"생략":state.shelf,
     slot:state.slot,wavelength:clean($("wavelength").value),
-    slotNumber:slotNo,unitCategory:unitCategory,unitName:unitName,unitBarcode:"",
+    slotNumber:slotNo,unitCategory:unitCategory,unitName:unitName,unitBarcode:state.slot,
     memo:clean($("memo").value),createdAt:new Date().toLocaleString()
   });
   cancelSlot();saveLocal();renderRecords();toast("저장했습니다. 다음 Slot을 스캔하세요.");
@@ -1148,6 +1206,7 @@ $("changeModeBtn").addEventListener("click",changeWorkMode);
 $("newChangeModeBtn").addEventListener("click",changeWorkMode);
 $("scanUnitBarcodeBtn").addEventListener("click",startUnitBarcodeScan);
 $("saveRelocationBtn").addEventListener("click",saveRelocation);
+$("cancelRelocationEditBtn").addEventListener("click",function(){clearRelocationForm();toast("재배치 데이터 수정을 취소했습니다.");});
 $("resetRelocationBtn").addEventListener("click",function(){clearRelocationForm();toast("재배치 입력값을 초기화했습니다.");});
 $("relocationUnitCategory").addEventListener("change",function(){populateRelocationUnitNames();});
 $("relocationManualUnitName").addEventListener("input",function(){this.value=this.value.replace(/[\u0000-\u001F\u007F]/g,"").slice(0,80);});
@@ -1267,6 +1326,8 @@ $("newCsvBtn").addEventListener("click",function(){exportXLSX("신규 증설");}
 $("newShareBtn").addEventListener("pointerdown",function(){prepareSharePayload("신규 증설");});
 $("newShareBtn").addEventListener("click",function(){shareRecordText("신규 증설");});
 $("relocationCsvBtn").addEventListener("click",function(){exportXLSX("재배치");});
+$("relocationImportBtn").addEventListener("click",function(){$("relocationImportInput").click();});
+$("relocationImportInput").addEventListener("change",function(){var file=this.files&&this.files[0];this.value="";importRelocationXlsx(file);});
 $("relocationShareBtn").addEventListener("pointerdown",function(){prepareSharePayload("재배치");});
 $("relocationShareBtn").addEventListener("click",function(){shareRecordText("재배치");});
 
@@ -1280,6 +1341,7 @@ function environmentCheck(){
 }
 function hasUnsavedWork(){
   if(state.scanning||state.slot||state.rack||state.shelf)return true;
+  if(editingRelocationId)return true;
   var ids=state.workMode==="relocation"?
     ["beforeOffice","beforeRing","beforeSlot","beforeWavelength","relocationUnitCategory","relocationUnitName","relocationManualUnitName","unitBarcode","afterOffice","afterRing","afterSlot","afterWavelength","relocationMemo"]:
     ["ringName","officeName","wavelength","slotNumber","unitCategory","unitName","manualUnitName","memo","manualCode"];

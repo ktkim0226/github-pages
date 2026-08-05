@@ -1,4 +1,4 @@
-# v1.0.24 테스트 결과
+# v1.0.26 테스트 결과
 
 - JavaScript 문법 검사: PASS
 - HTML ID 중복 검사: PASS
@@ -17,9 +17,19 @@
 - 재배치 선택값과 직접 입력값 동시 존재 시 직접 입력값 우선: PASS
 - 재배치 저장 후 직접 입력 유니트명 유지: PASS
 - 재배치 입력값 초기화 시 직접 입력 유니트명 삭제: PASS
+- 저장된 재배치 데이터 2번 입력란 불러오기: PASS
+- 재배치 전 저장/재배치 완료 상태 표시: PASS
+- 불러온 기존 레코드 수정 저장 및 중복 행 방지: PASS
+- 재배치 수정 취소 및 편집 상태 해제: PASS
+- 재배치 XLSX 15열 양식 역매핑: PASS
+- XLSX 한 건 자동 불러오기 및 여러 건 목록 복원: PASS
+- XLSX 중복 데이터 건너뛰기: PASS
+- 신규 증설 저장 목록 유니트 바코드 표시: PASS
+- 재배치 저장 목록 유니트 바코드 표시: PASS
+- 신규 증설 기존 Slot 바코드 표시 호환: PASS
 - 기존 V13 저장 데이터 키 호환: PASS
 - 작업유형 포함 XLSX: PASS
-- 서비스 워커 v1.0.24 캐시: PASS
+- 서비스 워커 v1.0.26 캐시: PASS
 - pointerdown 공유 데이터 사전 준비: PASS
 - Android에서 navigator.share 미호출: PASS
 - Android에서 내용 복사 후 XLSX 저장: PASS
